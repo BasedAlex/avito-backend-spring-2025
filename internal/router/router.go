@@ -20,8 +20,12 @@ func NewRouter(svc service.Service) http.Handler {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Use(middleware.Authentication)
+		r.Get("/pvz", svc.GetPVZHandler)
 		r.Post("/pvz", svc.CreatePVZHandler)
-
+		r.Post("/receptions", svc.PostReceptionHandler)
+		r.Post("/products", svc.AddProductsHandler)
+		r.Post("/pvz/{pvzId}/delete_last_product", svc.DeleteLastProductHandler)
+		r.Post("/pvz/{pvzId}/close_last_reception", svc.CloseLastReceptionHandler)
 	})
 
 	return r

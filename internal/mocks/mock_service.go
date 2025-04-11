@@ -35,6 +35,30 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
 }
 
+// AddProductsHandler mocks base method.
+func (m *MockService) AddProductsHandler(w http.ResponseWriter, r *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddProductsHandler", w, r)
+}
+
+// AddProductsHandler indicates an expected call of AddProductsHandler.
+func (mr *MockServiceMockRecorder) AddProductsHandler(w, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProductsHandler", reflect.TypeOf((*MockService)(nil).AddProductsHandler), w, r)
+}
+
+// CloseLastReceptionHandler mocks base method.
+func (m *MockService) CloseLastReceptionHandler(w http.ResponseWriter, r *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CloseLastReceptionHandler", w, r)
+}
+
+// CloseLastReceptionHandler indicates an expected call of CloseLastReceptionHandler.
+func (mr *MockServiceMockRecorder) CloseLastReceptionHandler(w, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseLastReceptionHandler", reflect.TypeOf((*MockService)(nil).CloseLastReceptionHandler), w, r)
+}
+
 // CreatePVZHandler mocks base method.
 func (m *MockService) CreatePVZHandler(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
@@ -45,6 +69,18 @@ func (m *MockService) CreatePVZHandler(w http.ResponseWriter, r *http.Request) {
 func (mr *MockServiceMockRecorder) CreatePVZHandler(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePVZHandler", reflect.TypeOf((*MockService)(nil).CreatePVZHandler), w, r)
+}
+
+// DeleteLastProductHandler mocks base method.
+func (m *MockService) DeleteLastProductHandler(w http.ResponseWriter, r *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DeleteLastProductHandler", w, r)
+}
+
+// DeleteLastProductHandler indicates an expected call of DeleteLastProductHandler.
+func (mr *MockServiceMockRecorder) DeleteLastProductHandler(w, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLastProductHandler", reflect.TypeOf((*MockService)(nil).DeleteLastProductHandler), w, r)
 }
 
 // DummyLoginHandler mocks base method.
@@ -59,6 +95,18 @@ func (mr *MockServiceMockRecorder) DummyLoginHandler(w, r interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DummyLoginHandler", reflect.TypeOf((*MockService)(nil).DummyLoginHandler), w, r)
 }
 
+// GetPVZHandler mocks base method.
+func (m *MockService) GetPVZHandler(w http.ResponseWriter, r *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "GetPVZHandler", w, r)
+}
+
+// GetPVZHandler indicates an expected call of GetPVZHandler.
+func (mr *MockServiceMockRecorder) GetPVZHandler(w, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPVZHandler", reflect.TypeOf((*MockService)(nil).GetPVZHandler), w, r)
+}
+
 // LoginUserHandler mocks base method.
 func (m *MockService) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
@@ -69,6 +117,18 @@ func (m *MockService) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 func (mr *MockServiceMockRecorder) LoginUserHandler(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoginUserHandler", reflect.TypeOf((*MockService)(nil).LoginUserHandler), w, r)
+}
+
+// PostReceptionHandler mocks base method.
+func (m *MockService) PostReceptionHandler(w http.ResponseWriter, r *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "PostReceptionHandler", w, r)
+}
+
+// PostReceptionHandler indicates an expected call of PostReceptionHandler.
+func (mr *MockServiceMockRecorder) PostReceptionHandler(w, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostReceptionHandler", reflect.TypeOf((*MockService)(nil).PostReceptionHandler), w, r)
 }
 
 // RegisterUserHandler mocks base method.

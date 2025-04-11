@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/basedalex/avito-backend-2025-spring/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,7 +14,16 @@ type Repository interface {
 	RegisterUser() error
 	LoginUser() (string, error)
 	CreatePVZ(city string) error 
+	CreateReception(pvz_id string) error
+	AddProducts(pvz_id string, product_name string) error
+	DeleteLastProduct(pvz_id string) error
+	CloseLastReception(pvz_id string) error
+	GetPVZInfo(startDate, endDate time.Time, page, limit int) (PVZWithReceptions, error)
 }
+
+type PVZWithReceptions struct {
+}
+
 
 type Postgres struct {
 	db *pgxpool.Pool
@@ -49,4 +59,24 @@ func (p *Postgres) LoginUser() (string, error) {
 
 func (p *Postgres) CreatePVZ(city string) error {
 	return nil
+}
+
+func (p *Postgres) CreateReception(pvz_id string) error {
+	return nil
+}
+
+func (p *Postgres) AddProducts(product_name string, pvz_id string) error {
+	return nil
+}
+
+func (p *Postgres) DeleteLastProduct(pvz_id string) error {
+	return nil
+}
+
+func (p *Postgres) CloseLastReception(pvz_id string) error {
+	return nil
+}
+
+func (p *Postgres) GetPVZInfo(startDate, endDate time.Time, page, limit int) (PVZWithReceptions, error) {
+	return PVZWithReceptions{}, nil
 }
