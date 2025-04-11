@@ -1,0 +1,11 @@
+server:
+  host: "localhost"
+  port: 8080
+
+database:
+  dsn: user=postgres password=password host=postgres port=5432 dbname=avito-shop sslmode=disable pool_max_conns=10
+  migrations: "./migrations"
+
+log:
+  level: "debug"
+  output: "logs/app.log"

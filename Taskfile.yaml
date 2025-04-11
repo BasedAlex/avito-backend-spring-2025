@@ -1,0 +1,51 @@
+version: '3'
+
+tasks:
+  build:
+    desc: "Собрать Docker-контейнеры"
+    cmds:
+      - docker compose build
+
+  up:
+    desc: "Запустить контейнеры"
+    cmds:
+      - docker compose up -d
+
+  run: 
+    desc: "Собрать Docker и запустить контейнеры"
+    deps: [build, up]
+
+  down:
+    desc: "Остановить контейнеры"
+    cmds:
+      - docker compose down
+
+  lint:
+    desc: "Запустить линтер"
+    cmds:
+      - golangci-lint run ./...
+
+  integration:
+    desc: "Запустить интеграционные тесты"
+    cmds:
+      - go test -v ./internal/tests
+
+  test:
+    desc: "Запустить юнит тесты"
+    cmds:
+      - go test -v ./internal/service
+
+  fmt:
+    desc: "Форматировать код"
+    cmds:
+      - go fmt ./...
+  
+  check:
+    desc: "Запустить линтер и тесты"
+    deps: [lint, test, integration]
+
+  restart:
+    desc: "Перезапустить контейнеры"
+    cmds:
+      - docker compose down
+      - docker compose up -d
