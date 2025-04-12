@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/basedalex/avito-backend-2025-spring/internal/auth"
 	"github.com/basedalex/avito-backend-2025-spring/internal/mocks"
+	"github.com/go-chi/chi/v5"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -317,5 +319,371 @@ func TestCreatePVZHandler(t *testing.T) {
 	
 		body, _ := io.ReadAll(w.Body)
 		assert.Contains(t, string(body), "Доступ запрещён")
+	})
+}
+
+func TestPostReceptionHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := mocks.NewMockRepository(ctrl)
+	mockTokens := mocks.NewMockTokenManager(ctrl)
+
+	s := &MyService{
+		db: mockDB,
+		tokens: mockTokens,
+	}
+
+	t.Run(("PVZ success"), func(t *testing.T) {
+		createReq := struct {
+			PVZID string `json:"pvzId"`
+		}{
+			PVZID:    "12345",
+		}
+		expectedAuthData := &auth.AuthData{
+			Role: "client",
+		}
+		
+		mockTokens.EXPECT().VerifyToken("dummy-token").Return(expectedAuthData, nil)
+		mockDB.EXPECT().CreateReception(createReq.PVZID).Return(nil)
+
+		requestBody, _ := json.Marshal(createReq)
+		req := httptest.NewRequest(http.MethodPost, "/api/receptions", bytes.NewBuffer(requestBody))
+		req.Header.Set("Authorization", "dummy-token")
+		w := httptest.NewRecorder()
+		s.PostReceptionHandler(w, req)
+		assert.Equal(t, http.StatusCreated, w.Result().StatusCode)
+
+		var response map[string]string
+        err := json.NewDecoder(w.Body).Decode(&response)
+        assert.NoError(t, err)
+	})
+
+	t.Run("wrong role", func(t *testing.T) {
+		createReq := struct {
+			PVZID string `json:"pvzId"`
+		}{
+			PVZID: "12345",
+		}
+		expectedAuthData := &auth.AuthData{
+			Role: "moderator",
+		}
+	
+		mockTokens.EXPECT().VerifyToken("dummy-token").Return(expectedAuthData, nil)
+	
+		requestBody, _ := json.Marshal(createReq)
+		req := httptest.NewRequest(http.MethodPost, "/api/receptions", bytes.NewBuffer(requestBody))
+		req.Header.Set("Authorization", "dummy-token")
+		w := httptest.NewRecorder()
+	
+		s.PostReceptionHandler(w, req)
+	
+		assert.Equal(t, http.StatusForbidden, w.Result().StatusCode)
+	
+		body, _ := io.ReadAll(w.Body)
+		assert.Contains(t, string(body), "Доступ запрещён")
+	})
+
+	t.Run(("PVZ no token"), func(t *testing.T) {
+		createReq := struct {
+			PVZID string `json:"pvzId"`
+		}{
+			PVZID:    "12345",
+		}
+		expectedAuthData := &auth.AuthData{
+		}
+		
+		mockTokens.EXPECT().VerifyToken("").Return(expectedAuthData, nil)
+
+		requestBody, _ := json.Marshal(createReq)
+		req := httptest.NewRequest(http.MethodPost, "/api/receptions", bytes.NewBuffer(requestBody))
+		req.Header.Set("Authorization", "")
+		w := httptest.NewRecorder()
+		s.PostReceptionHandler(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Result().StatusCode)
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("token").Return(&auth.AuthData{Role: "client"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", bytes.NewBuffer([]byte("invalid json")))
+		req.Header.Set("Authorization", "token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestAddProductsHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := mocks.NewMockRepository(ctrl)
+	mockTokens := mocks.NewMockTokenManager(ctrl)
+
+	s := &MyService{
+		db:     mockDB,
+		tokens: mockTokens,
+	}
+
+	t.Run("success", func(t *testing.T) {
+		reqBody := map[string]string{
+			"pvzId": "12345",
+			"type":  "электроника",
+		}
+		body, _ := json.Marshal(reqBody)
+
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+		mockDB.EXPECT().AddProducts("12345", "электроника").Return(nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "valid-token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("invalid token", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("invalid-token").Return(nil, errors.New("invalid"))
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", nil)
+		req.Header.Set("Authorization", "invalid-token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("wrong role", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("token").Return(&auth.AuthData{Role: "moderator"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", nil)
+		req.Header.Set("Authorization", "token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("token").Return(&auth.AuthData{Role: "client"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", bytes.NewBuffer([]byte("invalid json")))
+		req.Header.Set("Authorization", "token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid product type", func(t *testing.T) {
+		reqBody := map[string]string{
+			"pvzId": "12345",
+			"type":  "мебель",
+		}
+		body, _ := json.Marshal(reqBody)
+
+		mockTokens.EXPECT().VerifyToken("token").Return(&auth.AuthData{Role: "client"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("db error", func(t *testing.T) {
+		reqBody := map[string]string{
+			"pvzId": "12345",
+			"type":  "одежда",
+		}
+		body, _ := json.Marshal(reqBody)
+
+		mockTokens.EXPECT().VerifyToken("token").Return(&auth.AuthData{Role: "client"}, nil)
+		mockDB.EXPECT().AddProducts("12345", "одежда").Return(errors.New("db error"))
+
+		req := httptest.NewRequest(http.MethodPost, "/api/products", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "token")
+		w := httptest.NewRecorder()
+
+		s.AddProductsHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestDeleteLastProductHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := mocks.NewMockRepository(ctrl)
+	mockTokens := mocks.NewMockTokenManager(ctrl)
+
+	s := &MyService{
+		db:     mockDB,
+		tokens: mockTokens,
+	}
+
+	t.Run("success", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+		mockDB.EXPECT().DeleteLastProduct("123").Return(nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/delete_last_product", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		req.Header.Set("Authorization", "valid-token")
+		w := httptest.NewRecorder()
+
+		s.DeleteLastProductHandler(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("unauthorized token", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("invalid-token").Return(nil, errors.New("invalid token"))
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/delete_last_product", nil)
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		req.Header.Set("Authorization", "invalid-token")
+		w := httptest.NewRecorder()
+
+		s.DeleteLastProductHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("wrong role", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "moderator"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/delete_last_product", nil)
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		req.Header.Set("Authorization", "valid-token")
+		w := httptest.NewRecorder()
+
+		s.DeleteLastProductHandler(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("empty pvzId", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz//delete_last_product", nil)
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
+
+		req.Header.Set("Authorization", "valid-token")
+		w := httptest.NewRecorder()
+
+		s.DeleteLastProductHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("db error", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+		mockDB.EXPECT().DeleteLastProduct("123").Return(errors.New("some db error"))
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/delete_last_product", nil)
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		req.Header.Set("Authorization", "valid-token")
+		w := httptest.NewRecorder()
+
+		s.DeleteLastProductHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestCloseLastReceptionHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := mocks.NewMockRepository(ctrl)
+	mockTokens := mocks.NewMockTokenManager(ctrl)
+
+	s := &MyService{
+		db:     mockDB,
+		tokens: mockTokens,
+	}
+
+	t.Run("success", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+		mockDB.EXPECT().CloseLastReception("123").Return(nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/close_last_reception", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		req.Header.Set("Authorization", "valid-token")
+
+		w := httptest.NewRecorder()
+		s.CloseLastReceptionHandler(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("unauthorized token", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("invalid-token").Return(nil, errors.New("unauthorized"))
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/close_last_reception", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		req.Header.Set("Authorization", "invalid-token")
+
+		w := httptest.NewRecorder()
+		s.CloseLastReceptionHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("wrong role", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "moderator"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/close_last_reception", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		req.Header.Set("Authorization", "valid-token")
+
+		w := httptest.NewRecorder()
+		s.CloseLastReceptionHandler(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("empty pvzId", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz//close_last_reception", nil)
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
+		req.Header.Set("Authorization", "valid-token")
+
+		w := httptest.NewRecorder()
+		s.CloseLastReceptionHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("db error", func(t *testing.T) {
+		mockTokens.EXPECT().VerifyToken("valid-token").Return(&auth.AuthData{Role: "client"}, nil)
+		mockDB.EXPECT().CloseLastReception("123").Return(errors.New("db error"))
+
+		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/close_last_reception", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("pvzId", "123")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		req.Header.Set("Authorization", "valid-token")
+
+		w := httptest.NewRecorder()
+		s.CloseLastReceptionHandler(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

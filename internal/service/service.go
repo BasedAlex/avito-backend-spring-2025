@@ -10,7 +10,10 @@ import (
 
 	"github.com/basedalex/avito-backend-2025-spring/internal/auth"
 	"github.com/basedalex/avito-backend-2025-spring/internal/db"
+	"github.com/basedalex/avito-backend-2025-spring/internal/db/models"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 //go:generate mockgen -source=service.go -destination=../mocks/mock_service.go -package=mocks
@@ -80,28 +83,32 @@ func (s *MyService) DummyLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // (POST /api/register)
 func (s *MyService) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email string 	`json:"email"`
-		Password string `json:"password"`
-		Role string 	`json:"role"`
-	}
+	var reqUser models.User
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	if req.Email == "" || req.Password == "" || req.Role == "" {
+	if reqUser.Email == "" || reqUser.Password == "" || reqUser.Role == "" {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	if err := s.db.RegisterUser(); err != nil {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqUser.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return
+	}
+
+	reqUser.ID = uuid.New()
+	reqUser.Password = string(hashedPassword)
+
+	if err := s.db.RegisterUser(r.Context(), reqUser); err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	token, err := s.tokens.CreateToken(req.Role, req.Email)
+	token, err := s.tokens.CreateToken(reqUser.Role, reqUser.Email)
 	if err != nil {
 		http.Error(w, "Failed to create token", http.StatusInternalServerError)
 		return
@@ -121,14 +128,20 @@ func (s *MyService) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-
-	role, err := s.db.LoginUser()
+	
+	user, err := s.db.GetUserByEmail(req.Email)
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	token, err := s.tokens.CreateToken(role, req.Email)
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+	if err != nil {
+		http.Error(w, "Неверный запрос", http.StatusBadRequest)
+		return
+	}
+
+	token, err := s.tokens.CreateToken(user.Role, req.Email)
 	if err != nil {
 		http.Error(w, "Failed to create token", http.StatusInternalServerError)
 		return
@@ -148,15 +161,15 @@ func (s *MyService) CreatePVZHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
-	var req struct {
-		City string `json:"city"`
-	}
+	var pvz models.PVZ
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&pvz); err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	if err = s.db.CreatePVZ(req.City); err != nil {
+	pvz.ID = uuid.New()
+	pvz.RegistrationDate = time.Now().UTC()
+	if err = s.db.CreatePVZ(r.Context(), pvz); err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
@@ -176,14 +189,34 @@ func (s *MyService) PostReceptionHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req struct {
-		PVZID string `json:"pvzId"`
+		PVZID string `json:"pvz_id"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
-	if err = s.db.CreateReception(req.PVZID); err != nil {
+
+	PVZUUID, err  := uuid.Parse(req.PVZID)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
+		return
+	}
+
+
+	status, err := s.db.CheckReceptionStatus(r.Context(), PVZUUID); 
+	if err != nil || status == "in_progress" {
+		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
+	}
+
+	createReceptionRequest := &models.Reception{
+		ID: uuid.New(),
+		PVZID: PVZUUID,
+		ReceivedAt: time.Now().UTC(),
+		Status: status,
+	}
+
+	if err = s.db.CreateReception(r.Context(), createReceptionRequest); err != nil {
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
@@ -217,7 +250,26 @@ func (s *MyService) AddProductsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = s.db.AddProducts(req.PVZID, req.Product_type); err != nil {
+	PVZUUID, err  := uuid.Parse(req.PVZID)
+	if err != nil {
+		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
+		return
+	}
+
+	status, err := s.db.CheckReceptionStatus(r.Context(), PVZUUID); 
+	if err != nil || status != "in_progress" {
+		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
+	}
+
+
+	product := &models.Product{
+		ID: uuid.New(),
+		ReceivedAt: time.Now().UTC(),
+		Type: req.Product_type,
+		ReceptionID: PVZUUID,
+	}
+
+	if err = s.db.AddProducts(r.Context(), product); err != nil {
 		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
 		return
 	}

@@ -6,10 +6,12 @@ CREATE TYPE product_type AS ENUM ('electronics', 'clothing', 'shoes');
 
 CREATE TYPE user_role AS ENUM ('moderator', 'employee');
 
+CREATE Type pvz_city AS ENUM ('Moscow', 'Saint-Petersburg', 'Kazan');
+
 CREATE TABLE pvz (
     id UUID PRIMARY KEY,
     registration_date TIMESTAMP NOT NULL,
-    city VARCHAR(100) NOT NULL,
+    city pvz_city NOT NULL,
     last_reception_id UUID 
 );
 
