@@ -18,6 +18,9 @@ import (
 // DTO GEN command with oapi-codegen
 // oapi-codegen --package=dto --generate=models swagger.yaml > dto/dto.gen.go
 
+
+// oapi-codegen --package=dto swagger.yaml > internal/generated/dto.gen.go
+
 // DTO without oapi-codegen install go run github.com/deepmap/oapi-codegen/cmd/oapi-codegen@latest \
 //   --package=dto \
 //   --generate=models \
