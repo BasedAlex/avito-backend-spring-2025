@@ -53,11 +53,17 @@ type Service interface {
 
 type MyService struct {
 	db db.Repository
-	// cfg *config.Config
 	logger *logrus.Logger
 	tokens TokenManager
 }
 
+func NewService(db db.Repository, logger *logrus.Logger) *MyService {
+	return &MyService{
+		db: db,
+		tokens: JWTTokenManager{},
+		logger:	logger,
+	}
+}
 
 type TokenManager interface {
 	CreateToken(role, email string) (string, error)
@@ -74,194 +80,187 @@ func (j JWTTokenManager) VerifyToken(tokenString string) (*auth.AuthData, error)
 	return auth.VerifyToken(tokenString)
 }
 
-// (POST /api/dummyLogin)
+// (POST /dummyLogin)
 func (s *MyService) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Role string `json:"role"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Role != "client" && req.Role != "moderator") {
-		http.Error(w, "Invalid role", http.StatusBadRequest)
+	var req dto.PostDummyLoginJSONBody
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Role != "employee" && req.Role != "moderator") {
+		s.logger.Errorf("Failed to decode request body %v", err)
+		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
 	var email string
 	
-	if req.Role == "client" {
-		email = "client@mail.ru"
+	if req.Role == "employee" {
+		email = "employee@mail.ru"
 	} else {
 		email = "moderator@mail.ru"
 	}
-	
 
-	token, err := s.tokens.CreateToken(req.Role, email)
+	token, err := s.tokens.CreateToken(string(req.Role), email)
 	if err != nil {
-		http.Error(w, "Failed to create token", http.StatusInternalServerError)
+		s.logger.Errorf("Failed to create token %v", err)
+		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
 	writeResponse(w, http.StatusOK, map[string]string{"token": token})
 }
 
-// (POST /api/register)
+// (POST /register)
 func (s *MyService) PostRegister(w http.ResponseWriter, r *http.Request) {
-	var reqUser models.User
+	var req dto.PostRegisterJSONRequestBody
 
-	if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
-		s.logger.Error("Failed to decode request body", err)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Errorf("Failed to decode request body %v", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	if reqUser.Email == "" || reqUser.Password == "" || reqUser.Role == "" {
-		s.logger.Error("Invalid request body", reqUser)
+	if req.Email == "" || req.Password == "" || req.Role == "" {
+		s.logger.Errorf("Invalid request body %v", req)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqUser.Password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		s.logger.Error("Couldn't generate hashed password", err)
+		s.logger.Errorf("Couldn't generate hashed password %v", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	reqUser.ID = uuid.New()
-	reqUser.Password = string(hashedPassword)
+	reqUser := models.User{
+		ID: uuid.New(),
+		Email: string(req.Email),
+		Password: string(hashedPassword),
+		Role: string(req.Role),
+	}
 
-	if err := s.db.RegisterUser(r.Context(), reqUser); err != nil {
-		s.logger.Error("Error registering new user", err)
+	user, err := s.db.RegisterUser(r.Context(), reqUser); 
+	if err != nil {
+		s.logger.Error("Error registering new user ", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
+	}
+
+	type AuthResponse struct {
+		Token string      `json:"token"`
+		User  models.User `json:"user"`
 	}
 
 	token, err := s.tokens.CreateToken(reqUser.Role, reqUser.Email)
 	if err != nil {
-		s.logger.Error("Couldn't create token", err)
-		http.Error(w, "Failed to create token", http.StatusInternalServerError)
+		s.logger.Errorf("Couldn't create token %v", err)
+		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	writeResponse(w, http.StatusCreated, map[string]string{"token": token})
+	writeResponse(w, http.StatusCreated, AuthResponse{Token: token, User: user})
 }
 
-// (POST /api/login)
+// (POST /login)
 func (s *MyService) PostLogin(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email string 	`json:"email"`
-		Password string `json:"password"`
-	}
+	var req dto.PostLoginJSONRequestBody
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
-		http.Error(w, "Неверный запрос", http.StatusBadRequest)
+		s.logger.Errorf("Failed parsing json %v", req)
+		http.Error(w, "Неверные учетные данные", http.StatusUnauthorized)
 		return
 	}
 	
-	user, err := s.db.GetUserByEmail(req.Email)
+	user, err := s.db.GetUserByEmail(string(req.Email))
 	if err != nil {
-		http.Error(w, "Неверный запрос", http.StatusBadRequest)
+		http.Error(w, "Неверные учетные данные", http.StatusUnauthorized)
 		return
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
-		http.Error(w, "Неверный запрос", http.StatusBadRequest)
+		http.Error(w, "Неверные учетные данные", http.StatusUnauthorized)
 		return
 	}
 
-	token, err := s.tokens.CreateToken(user.Role, req.Email)
+	token, err := s.tokens.CreateToken(user.Role, string(req.Email))
 	if err != nil {
-		http.Error(w, "Failed to create token", http.StatusInternalServerError)
+		http.Error(w, "Неверные учетные данные", http.StatusUnauthorized)
 		return
 	}
 
 	writeResponse(w, http.StatusOK, map[string]string{"token": token})
 }
 
-// POST /api/pvz
+// POST /pvz
 func (s *MyService) PostPvz(w http.ResponseWriter, r *http.Request) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
-		s.logger.Error("Failed to verify token", err)
+		s.logger.Errorf("Failed to verify token %v", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	if data.Role != "moderator" { 
-		s.logger.Error("role is not moderator", data.Role)
+	ok := checkRole(data.Role, r.Method, "/pvz")
+	if !ok { 
+		s.logger.Error("role is not correct ", data.Role)
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
-	var pvz models.PVZ
+	var req dto.PostPvzJSONRequestBody
 
-	if err := json.NewDecoder(r.Body).Decode(&pvz); err != nil {
-		s.logger.Error("Failed to decode request body", err)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Errorf("Failed to decode request body %v", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	pvz.ID = uuid.New()
-	pvz.RegistrationDate = time.Now().UTC()
-	if err = s.db.CreatePVZ(r.Context(), pvz); err != nil {
-		s.logger.Error("Failed to create pvz", err)
+	pvz := models.PVZ{
+		ID:       			uuid.New(),
+		RegistrationDate: 	time.Now().UTC(),
+		City: 				string(req.City),
+	}
+
+	newPVZ, err := s.db.CreatePVZ(r.Context(), pvz); 
+	if err != nil {
+		s.logger.Errorf("Failed to create pvz %v", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	writeResponse(w, http.StatusCreated, nil)
+	writeResponse(w, http.StatusCreated, newPVZ)
 }
 
 // POST /receptions
 func (s *MyService) PostReceptions(w http.ResponseWriter, r *http.Request) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
-		s.logger.Error("Failed to verify token", err)
+		s.logger.Errorf("Failed to verify token %v", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	if data.Role != "client" { 
-		s.logger.Error("role is not client", data.Role)
+	
+	ok := checkRole(data.Role, r.Method, "/receptions")
+	if !ok { 
+		s.logger.Error("role is not correct", data.Role)
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
 
-	var req struct {
-		PVZID string `json:"pvz_id"`
-	}
+	var req dto.PostReceptionsJSONRequestBody
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.Error("Failed to decode request body", err)
+		s.logger.Errorf("Failed to decode request body %v", err)
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
 
-	PVZUUID, err  := uuid.Parse(req.PVZID)
+	createReceptionRequest := models.CreateReceptionRequest(req.PvzId)
+
+	reception, err := s.db.CreateReception(r.Context(), createReceptionRequest); 
 	if err != nil {
-		s.logger.Error("Failed to parse UUID", err)
-		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
-		return
-	}
-
-
-	status, err := s.db.CheckReceptionStatus(r.Context(), PVZUUID); 
-	if err != nil || status == "in_progress" {
-		s.logger.Error("Failed to check reception status", err)
-		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
-	}
-
-	s.logger.Infof("status: %v", status)
-
-	createReceptionRequest := &models.Reception{
-		ID: uuid.New(),
-		PVZID: PVZUUID,
-		ReceivedAt: time.Now().UTC(),
-		Status: status,
-	}
-
-
-	if err = s.db.CreateReception(r.Context(), createReceptionRequest); err != nil {
 		s.logger.Warn("Failed to create reception", err)
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
-	s.logger.Info("Reception created", createReceptionRequest)
-	writeResponse(w, http.StatusCreated, nil)
+	s.logger.Info("Reception created", reception)
+	writeResponse(w, http.StatusCreated, reception)
 }
 
 // POST /products
@@ -272,8 +271,9 @@ func (s *MyService) PostProducts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	if data.Role != "client" { 
-		s.logger.Error("role is not client", data.Role)
+	ok := checkRole(data.Role, r.Method, "/products")
+	if !ok { 
+		s.logger.Error("role is not correct", data.Role)
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
@@ -286,6 +286,8 @@ func (s *MyService) PostProducts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.logger.Infof("request: %+v", req)
+
 	productType, ok := models.ProductTypes[strings.ToLower(string(req.Type))]
 	if !ok {
 		s.logger.Error("Invalid product type", req.Type)
@@ -293,41 +295,29 @@ func (s *MyService) PostProducts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := s.db.CheckReceptionStatus(r.Context(), req.PvzId); 
-	if err != nil || status != "in_progress" {
-		s.logger.Error("Invalid status ", status, " or error getting reception", err)
-		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
-	}
+	product := models.CreateProduct(productType)
 
-	s.logger.Infof("status: %v", status)
-
-	product := &models.Product{
-		ID: uuid.New(),
-		ReceivedAt: time.Now().UTC(),
-		Type: productType,
-	}
-	
-	s.logger.Infof("request: %+v", req)
-
-	if err = s.db.AddProducts(r.Context(), product, req.PvzId); err != nil {
+	newProduct, err := s.db.AddProducts(r.Context(), product, req.PvzId)
+	if err != nil {
 		s.logger.Error("Error adding product", err)
 		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
 		return
 	}
-	s.logger.Info("product added ", product)
-	
-	writeResponse(w, http.StatusCreated, nil)
+
+	s.logger.Info("product added ", newProduct)
+
+	writeResponse(w, http.StatusCreated, newProduct)
 }
 
-
-// POST /api/pvz/{pvzId}/delete_last_product
+// POST /pvz/{pvzId}/delete_last_product
 func (s *MyService) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	if data.Role != "client" { 
+	ok := checkRole(data.Role, r.Method, "/pvz/{pvzId}/delete_last_product")
+	if !ok { 
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
@@ -349,27 +339,16 @@ func (s *MyService) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http
 	
 	writeResponse(w, http.StatusOK, nil)
 }
-func parseUUID(r *http.Request) (uuid.UUID, error) {
-	pvzStringID := chi.URLParam(r, "pvzId")
-	if pvzStringID == "" {
-		return uuid.UUID{}, errors.New("pvzId is empty")
-	}
-	pvzID, err := uuid.Parse(pvzStringID)
-	if err != nil {
-		return uuid.UUID{}, err
-	}
-	return pvzID, nil
-}
 
-
-// POST /api/pvz/{pvzId}/close_last_reception
+// POST /pvz/{pvzId}/close_last_reception
 func (s *MyService) PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	if data.Role != "client" { 
+	ok := checkRole(data.Role, r.Method, "/pvz/{pvzId}/delete_last_product")
+	if !ok { 
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
@@ -382,28 +361,37 @@ func (s *MyService) PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *htt
 	pvz := models.PVZ{
 		ID: pvzID,
 	}
-
-	if err = s.db.CloseLastReception(r.Context(), pvz); err != nil {
+	
+	lastReception, err := s.db.CloseLastReception(r.Context(), pvz); 
+	if err != nil {
 		http.Error(w, "Неверный запрос или приемка уже закрыта", http.StatusBadRequest)
 		return
 	}
-	writeResponse(w, http.StatusOK, "Приемка закрыта")
+
+	writeResponse(w, http.StatusOK, lastReception)
 }
 
-// GET /api/pvz 
+// GET /pvz 
 func (s *MyService) GetPvz(w http.ResponseWriter, r *http.Request, params dto.GetPvzParams) {
-	_, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
+	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
+
+	ok := checkRole(data.Role, r.Method, "/pvz")
+	if !ok { 
+		http.Error(w, "Доступ запрещён", http.StatusForbidden)
+		return
+	}
+
 	startDateStr := r.URL.Query().Get("startDate")
 	endDateStr := r.URL.Query().Get("endDate")
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
 
 
-	startDate, endDate, err := ParseTime(startDateStr, endDateStr)
+	startDate, endDate, err := parseTime(startDateStr, endDateStr)
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
@@ -435,8 +423,6 @@ func (s *MyService) GetPvz(w http.ResponseWriter, r *http.Request, params dto.Ge
 	writeResponse(w, http.StatusOK, pvz)
 }
 
-
-
 func writeResponse(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -448,7 +434,7 @@ func writeResponse(w http.ResponseWriter, statusCode int, data any) {
 	}
 }
 
-func ParseTime(start, end string) (time.Time, time.Time, error) {
+func parseTime(start, end string) (time.Time, time.Time, error) {
 	var startDate, endDate time.Time
 
 	var err error
@@ -469,10 +455,40 @@ func ParseTime(start, end string) (time.Time, time.Time, error) {
 	return startDate, endDate, nil
 }
 
-func NewService(db db.Repository, logger *logrus.Logger) *MyService {
-	return &MyService{
-		db: db,
-		tokens: JWTTokenManager{},
-		logger:	logger,
+func parseUUID(r *http.Request) (uuid.UUID, error) {
+	pvzStringID := chi.URLParam(r, "pvzId")
+	if pvzStringID == "" {
+		return uuid.UUID{}, errors.New("pvzId is empty")
 	}
+	pvzID, err := uuid.Parse(pvzStringID)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	return pvzID, nil
+}
+
+func checkRole(role, method, path string) bool {
+	var routes = map[string][]string{
+		"POST /products":                           {"employee"},
+		"POST /pvz/{pvzId}/close_last_reception":   {"employee"},
+		"POST /pvz/{pvzId}/delete_last_product":    {"employee"},
+		"POST /receptions":                         {"employee"},
+		"POST /pvz": 								{"moderator"},
+		"GET /pvz": 								{"moderator", "employee"},
+	}
+
+	key := method + " " + path
+
+	roles, ok := routes[key]
+	if !ok {
+		return false
+	}
+	
+	for _, r := range roles {
+		if r == role {
+			return true
+		}
+	}
+
+	return false 
 }

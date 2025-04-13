@@ -545,7 +545,7 @@ func TestDeleteLastProductHandler(t *testing.T) {
 	t.Run("unauthorized token", func(t *testing.T) {
 		mockTokens.EXPECT().VerifyToken("invalid-token").Return(nil, errors.New("invalid token"))
 
-		req := httptest.NewRequest(http.MethodPost, "/api/pvz/123/delete_last_product", nil)
+		req := httptest.NewRequest(http.MethodPost, "/pvz/123/delete_last_product", nil)
 
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("pvzId", "123")
@@ -554,7 +554,7 @@ func TestDeleteLastProductHandler(t *testing.T) {
 		req.Header.Set("Authorization", "invalid-token")
 		w := httptest.NewRecorder()
 
-		s.DeleteLastProductHandler(w, req)
+		s.PostPvzPvzIdDeleteLastProduct(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 

@@ -5,11 +5,13 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 	time "time"
 
-	db "github.com/basedalex/avito-backend-2025-spring/internal/db"
+	models "github.com/basedalex/avito-backend-2025-spring/internal/db/models"
 	gomock "github.com/golang/mock/gomock"
+	uuid "github.com/google/uuid"
 )
 
 // MockRepository is a mock of Repository interface.
@@ -36,115 +38,130 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // AddProducts mocks base method.
-func (m *MockRepository) AddProducts(pvz_id, product_name string) error {
+func (m *MockRepository) AddProducts(ctx context.Context, reception *models.Product, PVZID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddProducts", pvz_id, product_name)
+	ret := m.ctrl.Call(m, "AddProducts", ctx, reception, PVZID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddProducts indicates an expected call of AddProducts.
-func (mr *MockRepositoryMockRecorder) AddProducts(pvz_id, product_name interface{}) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) AddProducts(ctx, reception, PVZID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProducts", reflect.TypeOf((*MockRepository)(nil).AddProducts), pvz_id, product_name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProducts", reflect.TypeOf((*MockRepository)(nil).AddProducts), ctx, reception, PVZID)
 }
 
-// CloseLastReception mocks base method.
-func (m *MockRepository) CloseLastReception(pvz_id string) error {
+// CheckReceptionStatus mocks base method.
+func (m *MockRepository) CheckReceptionStatus(ctx context.Context, pvz_id uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CloseLastReception", pvz_id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CloseLastReception indicates an expected call of CloseLastReception.
-func (mr *MockRepositoryMockRecorder) CloseLastReception(pvz_id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseLastReception", reflect.TypeOf((*MockRepository)(nil).CloseLastReception), pvz_id)
-}
-
-// CreatePVZ mocks base method.
-func (m *MockRepository) CreatePVZ(city string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreatePVZ", city)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreatePVZ indicates an expected call of CreatePVZ.
-func (mr *MockRepositoryMockRecorder) CreatePVZ(city interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePVZ", reflect.TypeOf((*MockRepository)(nil).CreatePVZ), city)
-}
-
-// CreateReception mocks base method.
-func (m *MockRepository) CreateReception(pvz_id string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateReception", pvz_id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateReception indicates an expected call of CreateReception.
-func (mr *MockRepositoryMockRecorder) CreateReception(pvz_id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateReception", reflect.TypeOf((*MockRepository)(nil).CreateReception), pvz_id)
-}
-
-// DeleteLastProduct mocks base method.
-func (m *MockRepository) DeleteLastProduct(pvz_id string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteLastProduct", pvz_id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteLastProduct indicates an expected call of DeleteLastProduct.
-func (mr *MockRepositoryMockRecorder) DeleteLastProduct(pvz_id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLastProduct", reflect.TypeOf((*MockRepository)(nil).DeleteLastProduct), pvz_id)
-}
-
-// GetPVZInfo mocks base method.
-func (m *MockRepository) GetPVZInfo(startDate, endDate time.Time, page, limit int) (db.PVZWithReceptions, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPVZInfo", startDate, endDate, page, limit)
-	ret0, _ := ret[0].(db.PVZWithReceptions)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetPVZInfo indicates an expected call of GetPVZInfo.
-func (mr *MockRepositoryMockRecorder) GetPVZInfo(startDate, endDate, page, limit interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPVZInfo", reflect.TypeOf((*MockRepository)(nil).GetPVZInfo), startDate, endDate, page, limit)
-}
-
-// LoginUser mocks base method.
-func (m *MockRepository) LoginUser() (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LoginUser")
+	ret := m.ctrl.Call(m, "CheckReceptionStatus", ctx, pvz_id)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LoginUser indicates an expected call of LoginUser.
-func (mr *MockRepositoryMockRecorder) LoginUser() *gomock.Call {
+// CheckReceptionStatus indicates an expected call of CheckReceptionStatus.
+func (mr *MockRepositoryMockRecorder) CheckReceptionStatus(ctx, pvz_id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoginUser", reflect.TypeOf((*MockRepository)(nil).LoginUser))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckReceptionStatus", reflect.TypeOf((*MockRepository)(nil).CheckReceptionStatus), ctx, pvz_id)
+}
+
+// CloseLastReception mocks base method.
+func (m *MockRepository) CloseLastReception(ctx context.Context, pvz models.PVZ) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseLastReception", ctx, pvz)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseLastReception indicates an expected call of CloseLastReception.
+func (mr *MockRepositoryMockRecorder) CloseLastReception(ctx, pvz interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseLastReception", reflect.TypeOf((*MockRepository)(nil).CloseLastReception), ctx, pvz)
+}
+
+// CreatePVZ mocks base method.
+func (m *MockRepository) CreatePVZ(ctx context.Context, pvz models.PVZ) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreatePVZ", ctx, pvz)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreatePVZ indicates an expected call of CreatePVZ.
+func (mr *MockRepositoryMockRecorder) CreatePVZ(ctx, pvz interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePVZ", reflect.TypeOf((*MockRepository)(nil).CreatePVZ), ctx, pvz)
+}
+
+// CreateReception mocks base method.
+func (m *MockRepository) CreateReception(ctx context.Context, reception *models.Reception) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateReception", ctx, reception)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateReception indicates an expected call of CreateReception.
+func (mr *MockRepositoryMockRecorder) CreateReception(ctx, reception interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateReception", reflect.TypeOf((*MockRepository)(nil).CreateReception), ctx, reception)
+}
+
+// DeleteLastProduct mocks base method.
+func (m *MockRepository) DeleteLastProduct(ctx context.Context, pvz models.PVZ) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteLastProduct", ctx, pvz)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteLastProduct indicates an expected call of DeleteLastProduct.
+func (mr *MockRepositoryMockRecorder) DeleteLastProduct(ctx, pvz interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLastProduct", reflect.TypeOf((*MockRepository)(nil).DeleteLastProduct), ctx, pvz)
+}
+
+// GetPVZInfo mocks base method.
+func (m *MockRepository) GetPVZInfo(ctx context.Context, startDate, endDate time.Time, page, limit int) (models.PVZWithReceptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPVZInfo", ctx, startDate, endDate, page, limit)
+	ret0, _ := ret[0].(models.PVZWithReceptions)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPVZInfo indicates an expected call of GetPVZInfo.
+func (mr *MockRepositoryMockRecorder) GetPVZInfo(ctx, startDate, endDate, page, limit interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPVZInfo", reflect.TypeOf((*MockRepository)(nil).GetPVZInfo), ctx, startDate, endDate, page, limit)
+}
+
+// GetUserByEmail mocks base method.
+func (m *MockRepository) GetUserByEmail(email string) (models.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByEmail", email)
+	ret0, _ := ret[0].(models.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByEmail indicates an expected call of GetUserByEmail.
+func (mr *MockRepositoryMockRecorder) GetUserByEmail(email interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByEmail", reflect.TypeOf((*MockRepository)(nil).GetUserByEmail), email)
 }
 
 // RegisterUser mocks base method.
-func (m *MockRepository) RegisterUser() error {
+func (m *MockRepository) RegisterUser(ctx context.Context, user models.User) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RegisterUser")
+	ret := m.ctrl.Call(m, "RegisterUser", ctx, user)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RegisterUser indicates an expected call of RegisterUser.
-func (mr *MockRepositoryMockRecorder) RegisterUser() *gomock.Call {
+func (mr *MockRepositoryMockRecorder) RegisterUser(ctx, user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterUser", reflect.TypeOf((*MockRepository)(nil).RegisterUser))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterUser", reflect.TypeOf((*MockRepository)(nil).RegisterUser), ctx, user)
 }

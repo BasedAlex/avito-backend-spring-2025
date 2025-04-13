@@ -56,3 +56,19 @@ type ReceptionProducts struct {
     Reception Reception `json:"reception"`
     Products  []Product `json:"products"`
 }
+
+func CreateReceptionRequest(pvzID uuid.UUID) *Reception {
+	return &Reception{
+		ID: uuid.New(),
+		PVZID: pvzID,
+		ReceivedAt: time.Now().UTC(),
+	}
+}
+
+func CreateProduct(productType string) *Product {
+	return &Product{
+		ID: uuid.New(),
+		ReceivedAt: time.Now().UTC(),
+		Type: productType,
+	}
+}

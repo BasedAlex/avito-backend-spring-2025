@@ -9,7 +9,9 @@ import (
 	reflect "reflect"
 
 	auth "github.com/basedalex/avito-backend-2025-spring/internal/auth"
+	dto "github.com/basedalex/avito-backend-2025-spring/internal/generated"
 	gomock "github.com/golang/mock/gomock"
+	uuid "github.com/google/uuid"
 )
 
 // MockService is a mock of Service interface.
@@ -35,112 +37,112 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 	return m.recorder
 }
 
-// AddProductsHandler mocks base method.
-func (m *MockService) AddProductsHandler(w http.ResponseWriter, r *http.Request) {
+// GetPvz mocks base method.
+func (m *MockService) GetPvz(w http.ResponseWriter, r *http.Request, params dto.GetPvzParams) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddProductsHandler", w, r)
+	m.ctrl.Call(m, "GetPvz", w, r, params)
 }
 
-// AddProductsHandler indicates an expected call of AddProductsHandler.
-func (mr *MockServiceMockRecorder) AddProductsHandler(w, r interface{}) *gomock.Call {
+// GetPvz indicates an expected call of GetPvz.
+func (mr *MockServiceMockRecorder) GetPvz(w, r, params interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProductsHandler", reflect.TypeOf((*MockService)(nil).AddProductsHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPvz", reflect.TypeOf((*MockService)(nil).GetPvz), w, r, params)
 }
 
-// CloseLastReceptionHandler mocks base method.
-func (m *MockService) CloseLastReceptionHandler(w http.ResponseWriter, r *http.Request) {
+// PostDummyLogin mocks base method.
+func (m *MockService) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CloseLastReceptionHandler", w, r)
+	m.ctrl.Call(m, "PostDummyLogin", w, r)
 }
 
-// CloseLastReceptionHandler indicates an expected call of CloseLastReceptionHandler.
-func (mr *MockServiceMockRecorder) CloseLastReceptionHandler(w, r interface{}) *gomock.Call {
+// PostDummyLogin indicates an expected call of PostDummyLogin.
+func (mr *MockServiceMockRecorder) PostDummyLogin(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseLastReceptionHandler", reflect.TypeOf((*MockService)(nil).CloseLastReceptionHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostDummyLogin", reflect.TypeOf((*MockService)(nil).PostDummyLogin), w, r)
 }
 
-// CreatePVZHandler mocks base method.
-func (m *MockService) CreatePVZHandler(w http.ResponseWriter, r *http.Request) {
+// PostLogin mocks base method.
+func (m *MockService) PostLogin(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreatePVZHandler", w, r)
+	m.ctrl.Call(m, "PostLogin", w, r)
 }
 
-// CreatePVZHandler indicates an expected call of CreatePVZHandler.
-func (mr *MockServiceMockRecorder) CreatePVZHandler(w, r interface{}) *gomock.Call {
+// PostLogin indicates an expected call of PostLogin.
+func (mr *MockServiceMockRecorder) PostLogin(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePVZHandler", reflect.TypeOf((*MockService)(nil).CreatePVZHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostLogin", reflect.TypeOf((*MockService)(nil).PostLogin), w, r)
 }
 
-// DeleteLastProductHandler mocks base method.
-func (m *MockService) DeleteLastProductHandler(w http.ResponseWriter, r *http.Request) {
+// PostProducts mocks base method.
+func (m *MockService) PostProducts(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteLastProductHandler", w, r)
+	m.ctrl.Call(m, "PostProducts", w, r)
 }
 
-// DeleteLastProductHandler indicates an expected call of DeleteLastProductHandler.
-func (mr *MockServiceMockRecorder) DeleteLastProductHandler(w, r interface{}) *gomock.Call {
+// PostProducts indicates an expected call of PostProducts.
+func (mr *MockServiceMockRecorder) PostProducts(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLastProductHandler", reflect.TypeOf((*MockService)(nil).DeleteLastProductHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostProducts", reflect.TypeOf((*MockService)(nil).PostProducts), w, r)
 }
 
-// DummyLoginHandler mocks base method.
-func (m *MockService) DummyLoginHandler(w http.ResponseWriter, r *http.Request) {
+// PostPvz mocks base method.
+func (m *MockService) PostPvz(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DummyLoginHandler", w, r)
+	m.ctrl.Call(m, "PostPvz", w, r)
 }
 
-// DummyLoginHandler indicates an expected call of DummyLoginHandler.
-func (mr *MockServiceMockRecorder) DummyLoginHandler(w, r interface{}) *gomock.Call {
+// PostPvz indicates an expected call of PostPvz.
+func (mr *MockServiceMockRecorder) PostPvz(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DummyLoginHandler", reflect.TypeOf((*MockService)(nil).DummyLoginHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostPvz", reflect.TypeOf((*MockService)(nil).PostPvz), w, r)
 }
 
-// GetPVZHandler mocks base method.
-func (m *MockService) GetPVZHandler(w http.ResponseWriter, r *http.Request) {
+// PostPvzPvzIdCloseLastReception mocks base method.
+func (m *MockService) PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "GetPVZHandler", w, r)
+	m.ctrl.Call(m, "PostPvzPvzIdCloseLastReception", w, r, pvzId)
 }
 
-// GetPVZHandler indicates an expected call of GetPVZHandler.
-func (mr *MockServiceMockRecorder) GetPVZHandler(w, r interface{}) *gomock.Call {
+// PostPvzPvzIdCloseLastReception indicates an expected call of PostPvzPvzIdCloseLastReception.
+func (mr *MockServiceMockRecorder) PostPvzPvzIdCloseLastReception(w, r, pvzId interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPVZHandler", reflect.TypeOf((*MockService)(nil).GetPVZHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostPvzPvzIdCloseLastReception", reflect.TypeOf((*MockService)(nil).PostPvzPvzIdCloseLastReception), w, r, pvzId)
 }
 
-// LoginUserHandler mocks base method.
-func (m *MockService) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
+// PostPvzPvzIdDeleteLastProduct mocks base method.
+func (m *MockService) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "LoginUserHandler", w, r)
+	m.ctrl.Call(m, "PostPvzPvzIdDeleteLastProduct", w, r, pvzId)
 }
 
-// LoginUserHandler indicates an expected call of LoginUserHandler.
-func (mr *MockServiceMockRecorder) LoginUserHandler(w, r interface{}) *gomock.Call {
+// PostPvzPvzIdDeleteLastProduct indicates an expected call of PostPvzPvzIdDeleteLastProduct.
+func (mr *MockServiceMockRecorder) PostPvzPvzIdDeleteLastProduct(w, r, pvzId interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoginUserHandler", reflect.TypeOf((*MockService)(nil).LoginUserHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostPvzPvzIdDeleteLastProduct", reflect.TypeOf((*MockService)(nil).PostPvzPvzIdDeleteLastProduct), w, r, pvzId)
 }
 
-// PostReceptionHandler mocks base method.
-func (m *MockService) PostReceptionHandler(w http.ResponseWriter, r *http.Request) {
+// PostReceptions mocks base method.
+func (m *MockService) PostReceptions(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PostReceptionHandler", w, r)
+	m.ctrl.Call(m, "PostReceptions", w, r)
 }
 
-// PostReceptionHandler indicates an expected call of PostReceptionHandler.
-func (mr *MockServiceMockRecorder) PostReceptionHandler(w, r interface{}) *gomock.Call {
+// PostReceptions indicates an expected call of PostReceptions.
+func (mr *MockServiceMockRecorder) PostReceptions(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostReceptionHandler", reflect.TypeOf((*MockService)(nil).PostReceptionHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostReceptions", reflect.TypeOf((*MockService)(nil).PostReceptions), w, r)
 }
 
-// RegisterUserHandler mocks base method.
-func (m *MockService) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
+// PostRegister mocks base method.
+func (m *MockService) PostRegister(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RegisterUserHandler", w, r)
+	m.ctrl.Call(m, "PostRegister", w, r)
 }
 
-// RegisterUserHandler indicates an expected call of RegisterUserHandler.
-func (mr *MockServiceMockRecorder) RegisterUserHandler(w, r interface{}) *gomock.Call {
+// PostRegister indicates an expected call of PostRegister.
+func (mr *MockServiceMockRecorder) PostRegister(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterUserHandler", reflect.TypeOf((*MockService)(nil).RegisterUserHandler), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostRegister", reflect.TypeOf((*MockService)(nil).PostRegister), w, r)
 }
 
 // MockTokenManager is a mock of TokenManager interface.
