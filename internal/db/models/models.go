@@ -13,6 +13,12 @@ type User struct {
 	Role     string    `json:"role" db:"role"`
 }
 
+var ProductTypes = map[string]string{
+	"электроника":    "electronics",
+	"одежда":         "clothing",
+	"обувь":          "shoes",
+}
+
 type PVZ struct {
 	ID       			uuid.UUID 	`json:"id" db:"id"`
 	RegistrationDate 	time.Time 	`json:"registration_date" db:"registration_date"`
@@ -22,14 +28,31 @@ type PVZ struct {
 
 type Reception struct {
 	ID       			uuid.UUID 	`json:"id" db:"id"`
-	ReceivedAt 		time.Time 	`json:"recieved_at" db:"recieved_at"`
+	ReceivedAt 			time.Time 	`json:"received_at" db:"received_at"`
 	PVZID 				uuid.UUID 	`json:"pvz_id" db:"pvz_id"`
 	Status 				string 		`json:"status" db:"status"`
 }
 
 type Product struct {
 	ID       			uuid.UUID 	`json:"id" db:"id"`
-	ReceivedAt 		time.Time 	`json:"received_at" db:"received_at"`
-	Type 		string 		`json:"type" db:"type"`
+	ReceivedAt 			time.Time 	`json:"received_at" db:"received_at"`
+	Type 				string 		`json:"type" db:"type"`
 	ReceptionID 		uuid.UUID 	`json:"reception_id" db:"reception_id"`
+}
+
+type PVZWithReceptions struct {
+    PVZs  []PVZReceptions `json:"items"`
+    Total int             `json:"total"`
+    Page  int             `json:"page"`
+    Limit int             `json:"limit"`
+}
+
+type PVZReceptions struct {
+    PVZ        PVZ                `json:"pvz"`
+    Receptions []ReceptionProducts `json:"receptions"`
+}
+
+type ReceptionProducts struct {
+    Reception Reception `json:"reception"`
+    Products  []Product `json:"products"`
 }

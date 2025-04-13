@@ -11,7 +11,7 @@ import (
 func Authentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/dummyLogin" {
+		if path == "/dummyLogin" || path == "/register" || path == "/login" {
 			next.ServeHTTP(w, r)
 			return
 		}

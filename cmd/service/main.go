@@ -11,15 +11,19 @@ import (
 
 	"github.com/basedalex/avito-backend-2025-spring/internal/config"
 	"github.com/basedalex/avito-backend-2025-spring/internal/db"
-	"github.com/basedalex/avito-backend-2025-spring/internal/router"
+	dto "github.com/basedalex/avito-backend-2025-spring/internal/generated"
+	"github.com/basedalex/avito-backend-2025-spring/internal/middleware"
 	"github.com/basedalex/avito-backend-2025-spring/internal/service"
+	"github.com/go-chi/chi/v5"
+	"github.com/sirupsen/logrus"
 )
 
 // DTO GEN command with oapi-codegen
 // oapi-codegen --package=dto --generate=models swagger.yaml > dto/dto.gen.go
 
-
 // oapi-codegen --package=dto swagger.yaml > internal/generated/dto.gen.go
+
+// oapi-codegen -generate types,chi-server,spec -package=dto swagger.yaml > internal/generated/dto.gen.go
 
 // DTO without oapi-codegen install go run github.com/deepmap/oapi-codegen/cmd/oapi-codegen@latest \
 //   --package=dto \
@@ -36,6 +40,8 @@ func main() {
 		return
 	}
 
+	log.Println("new build")
+
 	database, err := db.NewPostgres(ctx, cfg)
 	if err != nil {
 		log.Fatal("Error connecting to database: ", err)
@@ -43,14 +49,17 @@ func main() {
 	}
 	log.Println("connected to database")
 
-	server := service.NewService(database)
-	r := router.NewRouter(server)
+	
+	server := service.NewService(database, logrus.New())
+	r := chi.NewRouter()
+	r.Use(middleware.Authentication)
+
+	dto.HandlerFromMux(server, r)
 
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: r,
 	}
-
 
 	go func() {
 		log.Println("Server listening on port 8080")

@@ -6,7 +6,7 @@ CREATE TYPE product_type AS ENUM ('electronics', 'clothing', 'shoes');
 
 CREATE TYPE user_role AS ENUM ('moderator', 'employee');
 
-CREATE Type pvz_city AS ENUM ('Moscow', 'Saint-Petersburg', 'Kazan');
+CREATE TYPE pvz_city AS ENUM ('Moscow', 'Saint-Petersburg', 'Kazan');
 
 CREATE TABLE pvz (
     id UUID PRIMARY KEY,
@@ -18,7 +18,7 @@ CREATE TABLE pvz (
 CREATE TABLE receptions (
     id UUID PRIMARY KEY, 
     received_at TIMESTAMP NOT NULL,
-    pvz_id INTEGER NOT NULL REFERENCES pvz(id) ON DELETE CASCADE,
+    pvz_id UUID NOT NULL REFERENCES pvz(id) ON DELETE CASCADE,
     status reception_status DEFAULT 'in_progress'
 );
 
@@ -26,7 +26,7 @@ CREATE TABLE products (
     id UUID PRIMARY KEY,
     received_at TIMESTAMP NOT NULL,
     type product_type NOT NULL,
-    reception_id INTEGER NOT NULL REFERENCES receptions(id) ON DELETE CASCADE
+    reception_id UUID NOT NULL REFERENCES receptions(id) ON DELETE CASCADE
 );
 
 CREATE TABLE users (

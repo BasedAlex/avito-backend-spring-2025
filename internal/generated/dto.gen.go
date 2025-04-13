@@ -8,9 +8,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -18,7 +16,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/labstack/echo/v4"
+	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -193,1667 +191,452 @@ type PostReceptionsJSONRequestBody PostReceptionsJSONBody
 // PostRegisterJSONRequestBody defines body for PostRegister for application/json ContentType.
 type PostRegisterJSONRequestBody PostRegisterJSONBody
 
-// RequestEditorFn  is the function signature for the RequestEditor callback function
-type RequestEditorFn func(ctx context.Context, req *http.Request) error
-
-// Doer performs HTTP requests.
-//
-// The standard http.Client implements this interface.
-type HttpRequestDoer interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-// Client which conforms to the OpenAPI3 specification for this service.
-type Client struct {
-	// The endpoint of the server conforming to this interface, with scheme,
-	// https://api.deepmap.com for example. This can contain a path relative
-	// to the server, such as https://api.deepmap.com/dev-test, and all the
-	// paths in the swagger spec will be appended to the server.
-	Server string
-
-	// Doer for performing requests, typically a *http.Client with any
-	// customized settings, such as certificate chains.
-	Client HttpRequestDoer
-
-	// A list of callbacks for modifying requests which are generated before sending over
-	// the network.
-	RequestEditors []RequestEditorFn
-}
-
-// ClientOption allows setting custom parameters during construction
-type ClientOption func(*Client) error
-
-// Creates a new Client, with reasonable defaults
-func NewClient(server string, opts ...ClientOption) (*Client, error) {
-	// create a client with sane default values
-	client := Client{
-		Server: server,
-	}
-	// mutate client and add all optional params
-	for _, o := range opts {
-		if err := o(&client); err != nil {
-			return nil, err
-		}
-	}
-	// ensure the server URL always has a trailing slash
-	if !strings.HasSuffix(client.Server, "/") {
-		client.Server += "/"
-	}
-	// create httpClient, if not already present
-	if client.Client == nil {
-		client.Client = &http.Client{}
-	}
-	return &client, nil
-}
-
-// WithHTTPClient allows overriding the default Doer, which is
-// automatically created using http.Client. This is useful for tests.
-func WithHTTPClient(doer HttpRequestDoer) ClientOption {
-	return func(c *Client) error {
-		c.Client = doer
-		return nil
-	}
-}
-
-// WithRequestEditorFn allows setting up a callback function, which will be
-// called right before sending the request. This can be used to mutate the request.
-func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
-	return func(c *Client) error {
-		c.RequestEditors = append(c.RequestEditors, fn)
-		return nil
-	}
-}
-
-// The interface specification for the client above.
-type ClientInterface interface {
-	// PostDummyLoginWithBody request with any body
-	PostDummyLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostDummyLogin(ctx context.Context, body PostDummyLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostLoginWithBody request with any body
-	PostLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostLogin(ctx context.Context, body PostLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostProductsWithBody request with any body
-	PostProductsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostProducts(ctx context.Context, body PostProductsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetPvz request
-	GetPvz(ctx context.Context, params *GetPvzParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostPvzWithBody request with any body
-	PostPvzWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostPvz(ctx context.Context, body PostPvzJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostPvzPvzIdCloseLastReception request
-	PostPvzPvzIdCloseLastReception(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostPvzPvzIdDeleteLastProduct request
-	PostPvzPvzIdDeleteLastProduct(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostReceptionsWithBody request with any body
-	PostReceptionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostReceptions(ctx context.Context, body PostReceptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostRegisterWithBody request with any body
-	PostRegisterWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostRegister(ctx context.Context, body PostRegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-}
-
-func (c *Client) PostDummyLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostDummyLoginRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostDummyLogin(ctx context.Context, body PostDummyLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostDummyLoginRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostLoginRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostLogin(ctx context.Context, body PostLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostLoginRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostProductsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostProductsRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostProducts(ctx context.Context, body PostProductsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostProductsRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetPvz(ctx context.Context, params *GetPvzParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetPvzRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostPvzWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostPvzRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostPvz(ctx context.Context, body PostPvzJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostPvzRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostPvzPvzIdCloseLastReception(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostPvzPvzIdCloseLastReceptionRequest(c.Server, pvzId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostPvzPvzIdDeleteLastProduct(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostPvzPvzIdDeleteLastProductRequest(c.Server, pvzId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostReceptionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostReceptionsRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostReceptions(ctx context.Context, body PostReceptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostReceptionsRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostRegisterWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostRegisterRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostRegister(ctx context.Context, body PostRegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostRegisterRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// NewPostDummyLoginRequest calls the generic PostDummyLogin builder with application/json body
-func NewPostDummyLoginRequest(server string, body PostDummyLoginJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostDummyLoginRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostDummyLoginRequestWithBody generates requests for PostDummyLogin with any type of body
-func NewPostDummyLoginRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/dummyLogin")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostLoginRequest calls the generic PostLogin builder with application/json body
-func NewPostLoginRequest(server string, body PostLoginJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostLoginRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostLoginRequestWithBody generates requests for PostLogin with any type of body
-func NewPostLoginRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/login")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostProductsRequest calls the generic PostProducts builder with application/json body
-func NewPostProductsRequest(server string, body PostProductsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostProductsRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostProductsRequestWithBody generates requests for PostProducts with any type of body
-func NewPostProductsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/products")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetPvzRequest generates requests for GetPvz
-func NewGetPvzRequest(server string, params *GetPvzParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/pvz")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.StartDate != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "startDate", runtime.ParamLocationQuery, *params.StartDate); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.EndDate != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "endDate", runtime.ParamLocationQuery, *params.EndDate); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostPvzRequest calls the generic PostPvz builder with application/json body
-func NewPostPvzRequest(server string, body PostPvzJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostPvzRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostPvzRequestWithBody generates requests for PostPvz with any type of body
-func NewPostPvzRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/pvz")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostPvzPvzIdCloseLastReceptionRequest generates requests for PostPvzPvzIdCloseLastReception
-func NewPostPvzPvzIdCloseLastReceptionRequest(server string, pvzId openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "pvzId", runtime.ParamLocationPath, pvzId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/pvz/%s/close_last_reception", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostPvzPvzIdDeleteLastProductRequest generates requests for PostPvzPvzIdDeleteLastProduct
-func NewPostPvzPvzIdDeleteLastProductRequest(server string, pvzId openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "pvzId", runtime.ParamLocationPath, pvzId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/pvz/%s/delete_last_product", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostReceptionsRequest calls the generic PostReceptions builder with application/json body
-func NewPostReceptionsRequest(server string, body PostReceptionsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostReceptionsRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostReceptionsRequestWithBody generates requests for PostReceptions with any type of body
-func NewPostReceptionsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/receptions")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostRegisterRequest calls the generic PostRegister builder with application/json body
-func NewPostRegisterRequest(server string, body PostRegisterJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostRegisterRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostRegisterRequestWithBody generates requests for PostRegister with any type of body
-func NewPostRegisterRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/register")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
-	for _, r := range c.RequestEditors {
-		if err := r(ctx, req); err != nil {
-			return err
-		}
-	}
-	for _, r := range additionalEditors {
-		if err := r(ctx, req); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ClientWithResponses builds on ClientInterface to offer response payloads
-type ClientWithResponses struct {
-	ClientInterface
-}
-
-// NewClientWithResponses creates a new ClientWithResponses, which wraps
-// Client with return type handling
-func NewClientWithResponses(server string, opts ...ClientOption) (*ClientWithResponses, error) {
-	client, err := NewClient(server, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &ClientWithResponses{client}, nil
-}
-
-// WithBaseURL overrides the baseURL.
-func WithBaseURL(baseURL string) ClientOption {
-	return func(c *Client) error {
-		newBaseURL, err := url.Parse(baseURL)
-		if err != nil {
-			return err
-		}
-		c.Server = newBaseURL.String()
-		return nil
-	}
-}
-
-// ClientWithResponsesInterface is the interface specification for the client with responses above.
-type ClientWithResponsesInterface interface {
-	// PostDummyLoginWithBodyWithResponse request with any body
-	PostDummyLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDummyLoginResponse, error)
-
-	PostDummyLoginWithResponse(ctx context.Context, body PostDummyLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*PostDummyLoginResponse, error)
-
-	// PostLoginWithBodyWithResponse request with any body
-	PostLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostLoginResponse, error)
-
-	PostLoginWithResponse(ctx context.Context, body PostLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*PostLoginResponse, error)
-
-	// PostProductsWithBodyWithResponse request with any body
-	PostProductsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProductsResponse, error)
-
-	PostProductsWithResponse(ctx context.Context, body PostProductsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProductsResponse, error)
-
-	// GetPvzWithResponse request
-	GetPvzWithResponse(ctx context.Context, params *GetPvzParams, reqEditors ...RequestEditorFn) (*GetPvzResponse, error)
-
-	// PostPvzWithBodyWithResponse request with any body
-	PostPvzWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPvzResponse, error)
-
-	PostPvzWithResponse(ctx context.Context, body PostPvzJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPvzResponse, error)
-
-	// PostPvzPvzIdCloseLastReceptionWithResponse request
-	PostPvzPvzIdCloseLastReceptionWithResponse(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*PostPvzPvzIdCloseLastReceptionResponse, error)
-
-	// PostPvzPvzIdDeleteLastProductWithResponse request
-	PostPvzPvzIdDeleteLastProductWithResponse(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*PostPvzPvzIdDeleteLastProductResponse, error)
-
-	// PostReceptionsWithBodyWithResponse request with any body
-	PostReceptionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostReceptionsResponse, error)
-
-	PostReceptionsWithResponse(ctx context.Context, body PostReceptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostReceptionsResponse, error)
-
-	// PostRegisterWithBodyWithResponse request with any body
-	PostRegisterWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostRegisterResponse, error)
-
-	PostRegisterWithResponse(ctx context.Context, body PostRegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*PostRegisterResponse, error)
-}
-
-type PostDummyLoginResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Token
-	JSON400      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostDummyLoginResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostDummyLoginResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostLoginResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Token
-	JSON401      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostLoginResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostLoginResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostProductsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *Product
-	JSON400      *Error
-	JSON403      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostProductsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostProductsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetPvzResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *[]struct {
-		Pvz        *PVZ `json:"pvz,omitempty"`
-		Receptions *[]struct {
-			Products  *[]Product `json:"products,omitempty"`
-			Reception *Reception `json:"reception,omitempty"`
-		} `json:"receptions,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r GetPvzResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetPvzResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostPvzResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *PVZ
-	JSON400      *Error
-	JSON403      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostPvzResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostPvzResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostPvzPvzIdCloseLastReceptionResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Reception
-	JSON400      *Error
-	JSON403      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostPvzPvzIdCloseLastReceptionResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostPvzPvzIdCloseLastReceptionResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostPvzPvzIdDeleteLastProductResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *Error
-	JSON403      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostPvzPvzIdDeleteLastProductResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostPvzPvzIdDeleteLastProductResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostReceptionsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *Reception
-	JSON400      *Error
-	JSON403      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostReceptionsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostReceptionsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostRegisterResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *User
-	JSON400      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PostRegisterResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostRegisterResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// PostDummyLoginWithBodyWithResponse request with arbitrary body returning *PostDummyLoginResponse
-func (c *ClientWithResponses) PostDummyLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDummyLoginResponse, error) {
-	rsp, err := c.PostDummyLoginWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostDummyLoginResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostDummyLoginWithResponse(ctx context.Context, body PostDummyLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*PostDummyLoginResponse, error) {
-	rsp, err := c.PostDummyLogin(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostDummyLoginResponse(rsp)
-}
-
-// PostLoginWithBodyWithResponse request with arbitrary body returning *PostLoginResponse
-func (c *ClientWithResponses) PostLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostLoginResponse, error) {
-	rsp, err := c.PostLoginWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostLoginResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostLoginWithResponse(ctx context.Context, body PostLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*PostLoginResponse, error) {
-	rsp, err := c.PostLogin(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostLoginResponse(rsp)
-}
-
-// PostProductsWithBodyWithResponse request with arbitrary body returning *PostProductsResponse
-func (c *ClientWithResponses) PostProductsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProductsResponse, error) {
-	rsp, err := c.PostProductsWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostProductsResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostProductsWithResponse(ctx context.Context, body PostProductsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProductsResponse, error) {
-	rsp, err := c.PostProducts(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostProductsResponse(rsp)
-}
-
-// GetPvzWithResponse request returning *GetPvzResponse
-func (c *ClientWithResponses) GetPvzWithResponse(ctx context.Context, params *GetPvzParams, reqEditors ...RequestEditorFn) (*GetPvzResponse, error) {
-	rsp, err := c.GetPvz(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetPvzResponse(rsp)
-}
-
-// PostPvzWithBodyWithResponse request with arbitrary body returning *PostPvzResponse
-func (c *ClientWithResponses) PostPvzWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPvzResponse, error) {
-	rsp, err := c.PostPvzWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostPvzResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostPvzWithResponse(ctx context.Context, body PostPvzJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPvzResponse, error) {
-	rsp, err := c.PostPvz(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostPvzResponse(rsp)
-}
-
-// PostPvzPvzIdCloseLastReceptionWithResponse request returning *PostPvzPvzIdCloseLastReceptionResponse
-func (c *ClientWithResponses) PostPvzPvzIdCloseLastReceptionWithResponse(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*PostPvzPvzIdCloseLastReceptionResponse, error) {
-	rsp, err := c.PostPvzPvzIdCloseLastReception(ctx, pvzId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostPvzPvzIdCloseLastReceptionResponse(rsp)
-}
-
-// PostPvzPvzIdDeleteLastProductWithResponse request returning *PostPvzPvzIdDeleteLastProductResponse
-func (c *ClientWithResponses) PostPvzPvzIdDeleteLastProductWithResponse(ctx context.Context, pvzId openapi_types.UUID, reqEditors ...RequestEditorFn) (*PostPvzPvzIdDeleteLastProductResponse, error) {
-	rsp, err := c.PostPvzPvzIdDeleteLastProduct(ctx, pvzId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostPvzPvzIdDeleteLastProductResponse(rsp)
-}
-
-// PostReceptionsWithBodyWithResponse request with arbitrary body returning *PostReceptionsResponse
-func (c *ClientWithResponses) PostReceptionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostReceptionsResponse, error) {
-	rsp, err := c.PostReceptionsWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostReceptionsResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostReceptionsWithResponse(ctx context.Context, body PostReceptionsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostReceptionsResponse, error) {
-	rsp, err := c.PostReceptions(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostReceptionsResponse(rsp)
-}
-
-// PostRegisterWithBodyWithResponse request with arbitrary body returning *PostRegisterResponse
-func (c *ClientWithResponses) PostRegisterWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostRegisterResponse, error) {
-	rsp, err := c.PostRegisterWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostRegisterResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostRegisterWithResponse(ctx context.Context, body PostRegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*PostRegisterResponse, error) {
-	rsp, err := c.PostRegister(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostRegisterResponse(rsp)
-}
-
-// ParsePostDummyLoginResponse parses an HTTP response from a PostDummyLoginWithResponse call
-func ParsePostDummyLoginResponse(rsp *http.Response) (*PostDummyLoginResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostDummyLoginResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Token
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostLoginResponse parses an HTTP response from a PostLoginWithResponse call
-func ParsePostLoginResponse(rsp *http.Response) (*PostLoginResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostLoginResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Token
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostProductsResponse parses an HTTP response from a PostProductsWithResponse call
-func ParsePostProductsResponse(rsp *http.Response) (*PostProductsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostProductsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Product
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetPvzResponse parses an HTTP response from a GetPvzWithResponse call
-func ParseGetPvzResponse(rsp *http.Response) (*GetPvzResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetPvzResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []struct {
-			Pvz        *PVZ `json:"pvz,omitempty"`
-			Receptions *[]struct {
-				Products  *[]Product `json:"products,omitempty"`
-				Reception *Reception `json:"reception,omitempty"`
-			} `json:"receptions,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostPvzResponse parses an HTTP response from a PostPvzWithResponse call
-func ParsePostPvzResponse(rsp *http.Response) (*PostPvzResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostPvzResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest PVZ
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostPvzPvzIdCloseLastReceptionResponse parses an HTTP response from a PostPvzPvzIdCloseLastReceptionWithResponse call
-func ParsePostPvzPvzIdCloseLastReceptionResponse(rsp *http.Response) (*PostPvzPvzIdCloseLastReceptionResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostPvzPvzIdCloseLastReceptionResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Reception
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostPvzPvzIdDeleteLastProductResponse parses an HTTP response from a PostPvzPvzIdDeleteLastProductWithResponse call
-func ParsePostPvzPvzIdDeleteLastProductResponse(rsp *http.Response) (*PostPvzPvzIdDeleteLastProductResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostPvzPvzIdDeleteLastProductResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostReceptionsResponse parses an HTTP response from a PostReceptionsWithResponse call
-func ParsePostReceptionsResponse(rsp *http.Response) (*PostReceptionsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostReceptionsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Reception
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostRegisterResponse parses an HTTP response from a PostRegisterWithResponse call
-func ParsePostRegisterResponse(rsp *http.Response) (*PostRegisterResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostRegisterResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest User
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Получение тестового токена
 	// (POST /dummyLogin)
-	PostDummyLogin(ctx echo.Context) error
+	PostDummyLogin(w http.ResponseWriter, r *http.Request)
 	// Авторизация пользователя
 	// (POST /login)
-	PostLogin(ctx echo.Context) error
+	PostLogin(w http.ResponseWriter, r *http.Request)
 	// Добавление товара в текущую приемку (только для сотрудников ПВЗ)
 	// (POST /products)
-	PostProducts(ctx echo.Context) error
+	PostProducts(w http.ResponseWriter, r *http.Request)
 	// Получение списка ПВЗ с фильтрацией по дате приемки и пагинацией
 	// (GET /pvz)
-	GetPvz(ctx echo.Context, params GetPvzParams) error
+	GetPvz(w http.ResponseWriter, r *http.Request, params GetPvzParams)
 	// Создание ПВЗ (только для модераторов)
 	// (POST /pvz)
-	PostPvz(ctx echo.Context) error
+	PostPvz(w http.ResponseWriter, r *http.Request)
 	// Закрытие последней открытой приемки товаров в рамках ПВЗ
 	// (POST /pvz/{pvzId}/close_last_reception)
-	PostPvzPvzIdCloseLastReception(ctx echo.Context, pvzId openapi_types.UUID) error
+	PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request, pvzId openapi_types.UUID)
 	// Удаление последнего добавленного товара из текущей приемки (LIFO, только для сотрудников ПВЗ)
 	// (POST /pvz/{pvzId}/delete_last_product)
-	PostPvzPvzIdDeleteLastProduct(ctx echo.Context, pvzId openapi_types.UUID) error
+	PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request, pvzId openapi_types.UUID)
 	// Создание новой приемки товаров (только для сотрудников ПВЗ)
 	// (POST /receptions)
-	PostReceptions(ctx echo.Context) error
+	PostReceptions(w http.ResponseWriter, r *http.Request)
 	// Регистрация пользователя
 	// (POST /register)
-	PostRegister(ctx echo.Context) error
+	PostRegister(w http.ResponseWriter, r *http.Request)
 }
 
-// ServerInterfaceWrapper converts echo contexts to parameters.
+// Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
+
+type Unimplemented struct{}
+
+// Получение тестового токена
+// (POST /dummyLogin)
+func (_ Unimplemented) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Авторизация пользователя
+// (POST /login)
+func (_ Unimplemented) PostLogin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Добавление товара в текущую приемку (только для сотрудников ПВЗ)
+// (POST /products)
+func (_ Unimplemented) PostProducts(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Получение списка ПВЗ с фильтрацией по дате приемки и пагинацией
+// (GET /pvz)
+func (_ Unimplemented) GetPvz(w http.ResponseWriter, r *http.Request, params GetPvzParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Создание ПВЗ (только для модераторов)
+// (POST /pvz)
+func (_ Unimplemented) PostPvz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Закрытие последней открытой приемки товаров в рамках ПВЗ
+// (POST /pvz/{pvzId}/close_last_reception)
+func (_ Unimplemented) PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request, pvzId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Удаление последнего добавленного товара из текущей приемки (LIFO, только для сотрудников ПВЗ)
+// (POST /pvz/{pvzId}/delete_last_product)
+func (_ Unimplemented) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request, pvzId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Создание новой приемки товаров (только для сотрудников ПВЗ)
+// (POST /receptions)
+func (_ Unimplemented) PostReceptions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Регистрация пользователя
+// (POST /register)
+func (_ Unimplemented) PostRegister(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
-	Handler ServerInterface
+	Handler            ServerInterface
+	HandlerMiddlewares []MiddlewareFunc
+	ErrorHandlerFunc   func(w http.ResponseWriter, r *http.Request, err error)
 }
 
-// PostDummyLogin converts echo context to params.
-func (w *ServerInterfaceWrapper) PostDummyLogin(ctx echo.Context) error {
-	var err error
+type MiddlewareFunc func(http.Handler) http.Handler
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostDummyLogin(ctx)
-	return err
+// PostDummyLogin operation middleware
+func (siw *ServerInterfaceWrapper) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostDummyLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostLogin converts echo context to params.
-func (w *ServerInterfaceWrapper) PostLogin(ctx echo.Context) error {
-	var err error
+// PostLogin operation middleware
+func (siw *ServerInterfaceWrapper) PostLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostLogin(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostProducts converts echo context to params.
-func (w *ServerInterfaceWrapper) PostProducts(ctx echo.Context) error {
-	var err error
+// PostProducts operation middleware
+func (siw *ServerInterfaceWrapper) PostProducts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	ctx.Set(BearerAuthScopes, []string{})
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostProducts(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProducts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// GetPvz converts echo context to params.
-func (w *ServerInterfaceWrapper) GetPvz(ctx echo.Context) error {
+// GetPvz operation middleware
+func (siw *ServerInterfaceWrapper) GetPvz(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	var err error
 
-	ctx.Set(BearerAuthScopes, []string{})
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetPvzParams
+
 	// ------------- Optional query parameter "startDate" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "startDate", ctx.QueryParams(), &params.StartDate)
+	err = runtime.BindQueryParameter("form", true, false, "startDate", r.URL.Query(), &params.StartDate)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter startDate: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startDate", Err: err})
+		return
 	}
 
 	// ------------- Optional query parameter "endDate" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "endDate", ctx.QueryParams(), &params.EndDate)
+	err = runtime.BindQueryParameter("form", true, false, "endDate", r.URL.Query(), &params.EndDate)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter endDate: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		return
 	}
 
 	// ------------- Optional query parameter "page" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "page", ctx.QueryParams(), &params.Page)
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter page: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
 	}
 
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetPvz(ctx, params)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPvz(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostPvz converts echo context to params.
-func (w *ServerInterfaceWrapper) PostPvz(ctx echo.Context) error {
-	var err error
+// PostPvz operation middleware
+func (siw *ServerInterfaceWrapper) PostPvz(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	ctx.Set(BearerAuthScopes, []string{})
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostPvz(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostPvz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostPvzPvzIdCloseLastReception converts echo context to params.
-func (w *ServerInterfaceWrapper) PostPvzPvzIdCloseLastReception(ctx echo.Context) error {
+// PostPvzPvzIdCloseLastReception operation middleware
+func (siw *ServerInterfaceWrapper) PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	var err error
+
 	// ------------- Path parameter "pvzId" -------------
 	var pvzId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithLocation("simple", false, "pvzId", runtime.ParamLocationPath, ctx.Param("pvzId"), &pvzId)
+	err = runtime.BindStyledParameterWithLocation("simple", false, "pvzId", runtime.ParamLocationPath, chi.URLParam(r, "pvzId"), &pvzId)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter pvzId: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pvzId", Err: err})
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostPvzPvzIdCloseLastReception(ctx, pvzId)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostPvzPvzIdCloseLastReception(w, r, pvzId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostPvzPvzIdDeleteLastProduct converts echo context to params.
-func (w *ServerInterfaceWrapper) PostPvzPvzIdDeleteLastProduct(ctx echo.Context) error {
+// PostPvzPvzIdDeleteLastProduct operation middleware
+func (siw *ServerInterfaceWrapper) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	var err error
+
 	// ------------- Path parameter "pvzId" -------------
 	var pvzId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithLocation("simple", false, "pvzId", runtime.ParamLocationPath, ctx.Param("pvzId"), &pvzId)
+	err = runtime.BindStyledParameterWithLocation("simple", false, "pvzId", runtime.ParamLocationPath, chi.URLParam(r, "pvzId"), &pvzId)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter pvzId: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pvzId", Err: err})
+		return
 	}
 
-	ctx.Set(BearerAuthScopes, []string{})
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostPvzPvzIdDeleteLastProduct(ctx, pvzId)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostPvzPvzIdDeleteLastProduct(w, r, pvzId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostReceptions converts echo context to params.
-func (w *ServerInterfaceWrapper) PostReceptions(ctx echo.Context) error {
-	var err error
+// PostReceptions operation middleware
+func (siw *ServerInterfaceWrapper) PostReceptions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	ctx.Set(BearerAuthScopes, []string{})
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostReceptions(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostReceptions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostRegister converts echo context to params.
-func (w *ServerInterfaceWrapper) PostRegister(ctx echo.Context) error {
-	var err error
+// PostRegister operation middleware
+func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PostRegister(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostRegister(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// This is a simple interface which specifies echo.Route addition functions which
-// are present on both echo.Echo and echo.Group, since we want to allow using
-// either of them for path registration
-type EchoRouter interface {
-	CONNECT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	TRACE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+type UnescapedCookieParamError struct {
+	ParamName string
+	Err       error
 }
 
-// RegisterHandlers adds each server route to the EchoRouter.
-func RegisterHandlers(router EchoRouter, si ServerInterface) {
-	RegisterHandlersWithBaseURL(router, si, "")
+func (e *UnescapedCookieParamError) Error() string {
+	return fmt.Sprintf("error unescaping cookie parameter '%s'", e.ParamName)
 }
 
-// Registers handlers, and prepends BaseURL to the paths, so that the paths
-// can be served under a prefix.
-func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
+func (e *UnescapedCookieParamError) Unwrap() error {
+	return e.Err
+}
 
+type UnmarshalingParamError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *UnmarshalingParamError) Error() string {
+	return fmt.Sprintf("Error unmarshaling parameter %s as JSON: %s", e.ParamName, e.Err.Error())
+}
+
+func (e *UnmarshalingParamError) Unwrap() error {
+	return e.Err
+}
+
+type RequiredParamError struct {
+	ParamName string
+}
+
+func (e *RequiredParamError) Error() string {
+	return fmt.Sprintf("Query argument %s is required, but not found", e.ParamName)
+}
+
+type RequiredHeaderError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *RequiredHeaderError) Error() string {
+	return fmt.Sprintf("Header parameter %s is required, but not found", e.ParamName)
+}
+
+func (e *RequiredHeaderError) Unwrap() error {
+	return e.Err
+}
+
+type InvalidParamFormatError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *InvalidParamFormatError) Error() string {
+	return fmt.Sprintf("Invalid format for parameter %s: %s", e.ParamName, e.Err.Error())
+}
+
+func (e *InvalidParamFormatError) Unwrap() error {
+	return e.Err
+}
+
+type TooManyValuesForParamError struct {
+	ParamName string
+	Count     int
+}
+
+func (e *TooManyValuesForParamError) Error() string {
+	return fmt.Sprintf("Expected one value for %s, got %d", e.ParamName, e.Count)
+}
+
+// Handler creates http.Handler with routing matching OpenAPI spec.
+func Handler(si ServerInterface) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{})
+}
+
+type ChiServerOptions struct {
+	BaseURL          string
+	BaseRouter       chi.Router
+	Middlewares      []MiddlewareFunc
+	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
+func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{
+		BaseRouter: r,
+	})
+}
+
+func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{
+		BaseURL:    baseURL,
+		BaseRouter: r,
+	})
+}
+
+// HandlerWithOptions creates http.Handler with additional options
+func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
+	r := options.BaseRouter
+
+	if r == nil {
+		r = chi.NewRouter()
+	}
+	if options.ErrorHandlerFunc == nil {
+		options.ErrorHandlerFunc = func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	}
 	wrapper := ServerInterfaceWrapper{
-		Handler: si,
+		Handler:            si,
+		HandlerMiddlewares: options.Middlewares,
+		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	router.POST(baseURL+"/dummyLogin", wrapper.PostDummyLogin)
-	router.POST(baseURL+"/login", wrapper.PostLogin)
-	router.POST(baseURL+"/products", wrapper.PostProducts)
-	router.GET(baseURL+"/pvz", wrapper.GetPvz)
-	router.POST(baseURL+"/pvz", wrapper.PostPvz)
-	router.POST(baseURL+"/pvz/:pvzId/close_last_reception", wrapper.PostPvzPvzIdCloseLastReception)
-	router.POST(baseURL+"/pvz/:pvzId/delete_last_product", wrapper.PostPvzPvzIdDeleteLastProduct)
-	router.POST(baseURL+"/receptions", wrapper.PostReceptions)
-	router.POST(baseURL+"/register", wrapper.PostRegister)
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/dummyLogin", wrapper.PostDummyLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/login", wrapper.PostLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/products", wrapper.PostProducts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/pvz", wrapper.GetPvz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/pvz", wrapper.PostPvz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/pvz/{pvzId}/close_last_reception", wrapper.PostPvzPvzIdCloseLastReception)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/pvz/{pvzId}/delete_last_product", wrapper.PostPvzPvzIdDeleteLastProduct)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/receptions", wrapper.PostReceptions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/register", wrapper.PostRegister)
+	})
 
+	return r
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object

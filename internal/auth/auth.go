@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -31,12 +32,19 @@ type AuthData struct {
 }
 
 func VerifyToken(tokenString string) (*AuthData, error) {
+	tokenString = stripPrefix(tokenString)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return secretKey, nil
 	})
 
-	if err != nil || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
+	if err != nil {
+		return nil, fmt.Errorf("parse error: %w", err)
+	}
+	if !token.Valid {
+		return nil, fmt.Errorf("token is not valid")
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
@@ -44,7 +52,20 @@ func VerifyToken(tokenString string) (*AuthData, error) {
 		return nil, fmt.Errorf("invalid claims")
 	}
 
-	role, _ := claims["role"].(string)
+	exp, ok := claims["exp"].(float64)
+	if !ok || time.Now().Unix() > int64(exp) {
+		return nil, fmt.Errorf("token expired")
+	}
 
-	return &AuthData{Role: role}, nil
+	role, _ := claims["role"].(string)
+	email, _ := claims["email"].(string)
+
+	return &AuthData{Role: role, Email: email}, nil
+}
+
+func stripPrefix(token string) string {
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		return strings.TrimSpace(token[7:])
+	}
+	return token
 }

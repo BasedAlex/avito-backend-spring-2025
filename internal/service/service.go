@@ -2,38 +2,59 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/basedalex/avito-backend-2025-spring/internal/auth"
 	"github.com/basedalex/avito-backend-2025-spring/internal/db"
 	"github.com/basedalex/avito-backend-2025-spring/internal/db/models"
+	dto "github.com/basedalex/avito-backend-2025-spring/internal/generated"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
 //go:generate mockgen -source=service.go -destination=../mocks/mock_service.go -package=mocks
 type Service interface {
-	DummyLoginHandler(w http.ResponseWriter, r *http.Request)
-	RegisterUserHandler(w http.ResponseWriter, r *http.Request)
-	LoginUserHandler(w http.ResponseWriter, r *http.Request)
-	CreatePVZHandler(w http.ResponseWriter, r *http.Request)
-	PostReceptionHandler(w http.ResponseWriter, r *http.Request)
-	AddProductsHandler(w http.ResponseWriter, r *http.Request) 
-	DeleteLastProductHandler(w http.ResponseWriter, r *http.Request)
-	CloseLastReceptionHandler(w http.ResponseWriter, r *http.Request)
-	GetPVZHandler(w http.ResponseWriter, r *http.Request)
+	// Получение тестового токена
+	// (POST /dummyLogin)
+	PostDummyLogin(w http.ResponseWriter, r *http.Request)
+	// Авторизация пользователя
+	// (POST /login)
+	PostLogin(w http.ResponseWriter, r *http.Request)
+	// Добавление товара в текущую приемку (только для сотрудников ПВЗ)
+	// (POST /products)
+	PostProducts(w http.ResponseWriter, r *http.Request)
+	// Получение списка ПВЗ с фильтрацией по дате приемки и пагинацией
+	// (GET /pvz)
+	GetPvz(w http.ResponseWriter, r *http.Request, params dto.GetPvzParams)
+	// Создание ПВЗ (только для модераторов)
+	// (POST /pvz)
+	PostPvz(w http.ResponseWriter, r *http.Request)
+	// Закрытие последней открытой приемки товаров в рамках ПВЗ
+	// (POST /pvz/{pvzId}/close_last_reception)
+	PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID)
+	// Удаление последнего добавленного товара из текущей приемки (LIFO, только для сотрудников ПВЗ)
+	// (POST /pvz/{pvzId}/delete_last_product)
+	PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID)
+	// Создание новой приемки товаров (только для сотрудников ПВЗ)
+	// (POST /receptions)
+	PostReceptions(w http.ResponseWriter, r *http.Request)
+	// Регистрация пользователя
+	// (POST /register)
+	PostRegister(w http.ResponseWriter, r *http.Request)
 }
-
 
 type MyService struct {
 	db db.Repository
 	// cfg *config.Config
-	// logger logrus.Logger
+	logger *logrus.Logger
 	tokens TokenManager
 }
 
@@ -54,7 +75,7 @@ func (j JWTTokenManager) VerifyToken(tokenString string) (*auth.AuthData, error)
 }
 
 // (POST /api/dummyLogin)
-func (s *MyService) DummyLoginHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Role string `json:"role"`
 	}
@@ -82,21 +103,25 @@ func (s *MyService) DummyLoginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // (POST /api/register)
-func (s *MyService) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) PostRegister(w http.ResponseWriter, r *http.Request) {
 	var reqUser models.User
 
 	if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
+		s.logger.Error("Failed to decode request body", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
 	if reqUser.Email == "" || reqUser.Password == "" || reqUser.Role == "" {
+		s.logger.Error("Invalid request body", reqUser)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqUser.Password), bcrypt.DefaultCost)
 	if err != nil {
+		s.logger.Error("Couldn't generate hashed password", err)
+		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -104,12 +129,14 @@ func (s *MyService) RegisterUserHandler(w http.ResponseWriter, r *http.Request) 
 	reqUser.Password = string(hashedPassword)
 
 	if err := s.db.RegisterUser(r.Context(), reqUser); err != nil {
+		s.logger.Error("Error registering new user", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 
 	token, err := s.tokens.CreateToken(reqUser.Role, reqUser.Email)
 	if err != nil {
+		s.logger.Error("Couldn't create token", err)
 		http.Error(w, "Failed to create token", http.StatusInternalServerError)
 		return
 	}
@@ -118,7 +145,7 @@ func (s *MyService) RegisterUserHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // (POST /api/login)
-func (s *MyService) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) PostLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email string 	`json:"email"`
 		Password string `json:"password"`
@@ -151,39 +178,45 @@ func (s *MyService) LoginUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/pvz
-func (s *MyService) CreatePVZHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) PostPvz(w http.ResponseWriter, r *http.Request) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
+		s.logger.Error("Failed to verify token", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 	if data.Role != "moderator" { 
+		s.logger.Error("role is not moderator", data.Role)
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
 	var pvz models.PVZ
 
 	if err := json.NewDecoder(r.Body).Decode(&pvz); err != nil {
+		s.logger.Error("Failed to decode request body", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 	pvz.ID = uuid.New()
 	pvz.RegistrationDate = time.Now().UTC()
 	if err = s.db.CreatePVZ(r.Context(), pvz); err != nil {
+		s.logger.Error("Failed to create pvz", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 	writeResponse(w, http.StatusCreated, nil)
 }
 
-// POST /api/receptions
-func (s *MyService) PostReceptionHandler(w http.ResponseWriter, r *http.Request) {
+// POST /receptions
+func (s *MyService) PostReceptions(w http.ResponseWriter, r *http.Request) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
+		s.logger.Error("Failed to verify token", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 	if data.Role != "client" { 
+		s.logger.Error("role is not client", data.Role)
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
@@ -193,12 +226,14 @@ func (s *MyService) PostReceptionHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error("Failed to decode request body", err)
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
 
 	PVZUUID, err  := uuid.Parse(req.PVZID)
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err != nil {
+		s.logger.Error("Failed to parse UUID", err)
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
@@ -206,8 +241,11 @@ func (s *MyService) PostReceptionHandler(w http.ResponseWriter, r *http.Request)
 
 	status, err := s.db.CheckReceptionStatus(r.Context(), PVZUUID); 
 	if err != nil || status == "in_progress" {
+		s.logger.Error("Failed to check reception status", err)
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 	}
+
+	s.logger.Infof("status: %v", status)
 
 	createReceptionRequest := &models.Reception{
 		ID: uuid.New(),
@@ -216,70 +254,74 @@ func (s *MyService) PostReceptionHandler(w http.ResponseWriter, r *http.Request)
 		Status: status,
 	}
 
+
 	if err = s.db.CreateReception(r.Context(), createReceptionRequest); err != nil {
+		s.logger.Warn("Failed to create reception", err)
 		http.Error(w, "Неверный запрос или есть незакрытая приемка", http.StatusBadRequest)
 		return
 	}
+	s.logger.Info("Reception created", createReceptionRequest)
 	writeResponse(w, http.StatusCreated, nil)
 }
 
-// POST /api/products
-func (s *MyService) AddProductsHandler(w http.ResponseWriter, r *http.Request) {
+// POST /products
+func (s *MyService) PostProducts(w http.ResponseWriter, r *http.Request) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
+		s.logger.Error("Failed to verify token", err)
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
 	if data.Role != "client" { 
+		s.logger.Error("role is not client", data.Role)
 		http.Error(w, "Доступ запрещён", http.StatusForbidden)
 		return
 	}
 
-	var req struct {
-		PVZID 			string 	`json:"pvzId"`
-		Product_type 	string 	`json:"type"`
-	}
+	var req dto.PostProductsJSONBody
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error("Failed to decode request body", err)
 		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
 		return
 	}
 
-	if req.Product_type != "электроника" && req.Product_type != "одежда" && req.Product_type != "обувь" {
+	productType, ok := models.ProductTypes[strings.ToLower(string(req.Type))]
+	if !ok {
+		s.logger.Error("Invalid product type", req.Type)
 		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
 		return
 	}
 
-	PVZUUID, err  := uuid.Parse(req.PVZID)
-	if err != nil {
-		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
-		return
-	}
-
-	status, err := s.db.CheckReceptionStatus(r.Context(), PVZUUID); 
+	status, err := s.db.CheckReceptionStatus(r.Context(), req.PvzId); 
 	if err != nil || status != "in_progress" {
+		s.logger.Error("Invalid status ", status, " or error getting reception", err)
 		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
 	}
 
+	s.logger.Infof("status: %v", status)
 
 	product := &models.Product{
 		ID: uuid.New(),
 		ReceivedAt: time.Now().UTC(),
-		Type: req.Product_type,
-		ReceptionID: PVZUUID,
+		Type: productType,
 	}
+	
+	s.logger.Infof("request: %+v", req)
 
-	if err = s.db.AddProducts(r.Context(), product); err != nil {
+	if err = s.db.AddProducts(r.Context(), product, req.PvzId); err != nil {
+		s.logger.Error("Error adding product", err)
 		http.Error(w, "Неверный запрос или нет активной приемки", http.StatusBadRequest)
 		return
 	}
+	s.logger.Info("product added ", product)
+	
 	writeResponse(w, http.StatusCreated, nil)
-
 }
 
 
 // POST /api/pvz/{pvzId}/delete_last_product
-func (s *MyService) DeleteLastProductHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
@@ -290,22 +332,38 @@ func (s *MyService) DeleteLastProductHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	pvzID := chi.URLParam(r, "pvzId")
-    if pvzID == "" {
-        http.Error(w, "Неверный запрос, нет активной приемки или нет товаров для удаления", http.StatusBadRequest)
-        return
-    }
+	pvzID, err := parseUUID(r)
+	if err != nil {
+		http.Error(w, "Неверный запрос, нет активной приемки или нет товаров для удаления", http.StatusBadRequest)
+		return
+	}
 
-	if err = s.db.DeleteLastProduct(pvzID); err != nil {
+	pvz := models.PVZ{
+		ID: pvzID,
+	}
+
+	if err = s.db.DeleteLastProduct(r.Context(), pvz); err != nil {
 		http.Error(w, "Неверный запрос, нет активной приемки или нет товаров для удаления", http.StatusBadRequest)
 		return
 	}
 	
 	writeResponse(w, http.StatusOK, nil)
 }
+func parseUUID(r *http.Request) (uuid.UUID, error) {
+	pvzStringID := chi.URLParam(r, "pvzId")
+	if pvzStringID == "" {
+		return uuid.UUID{}, errors.New("pvzId is empty")
+	}
+	pvzID, err := uuid.Parse(pvzStringID)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	return pvzID, nil
+}
+
 
 // POST /api/pvz/{pvzId}/close_last_reception
-func (s *MyService) CloseLastReceptionHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) PostPvzPvzIdCloseLastReception(w http.ResponseWriter, r *http.Request, pvzId uuid.UUID) {
 	data, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
@@ -316,13 +374,16 @@ func (s *MyService) CloseLastReceptionHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	pvzID := chi.URLParam(r, "pvzId")
-    if pvzID == "" {
+	pvzID, err := parseUUID(r)
+    if err != nil {
         http.Error(w, "Неверный запрос или приемка уже закрыта", http.StatusBadRequest)
         return
     }
+	pvz := models.PVZ{
+		ID: pvzID,
+	}
 
-	if err = s.db.CloseLastReception(pvzID); err != nil {
+	if err = s.db.CloseLastReception(r.Context(), pvz); err != nil {
 		http.Error(w, "Неверный запрос или приемка уже закрыта", http.StatusBadRequest)
 		return
 	}
@@ -330,7 +391,7 @@ func (s *MyService) CloseLastReceptionHandler(w http.ResponseWriter, r *http.Req
 }
 
 // GET /api/pvz 
-func (s *MyService) GetPVZHandler(w http.ResponseWriter, r *http.Request) {
+func (s *MyService) GetPvz(w http.ResponseWriter, r *http.Request, params dto.GetPvzParams) {
 	_, err := s.tokens.VerifyToken(r.Header.Get("Authorization"))
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
@@ -366,7 +427,7 @@ func (s *MyService) GetPVZHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pvz, err := s.db.GetPVZInfo(startDate, endDate, page, limit)
+	pvz, err := s.db.GetPVZInfo(r.Context(), startDate, endDate, page, limit)
 	if err != nil {
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
@@ -408,9 +469,10 @@ func ParseTime(start, end string) (time.Time, time.Time, error) {
 	return startDate, endDate, nil
 }
 
-func NewService(db db.Repository) *MyService {
+func NewService(db db.Repository, logger *logrus.Logger) *MyService {
 	return &MyService{
 		db: db,
 		tokens: JWTTokenManager{},
+		logger:	logger,
 	}
 }
