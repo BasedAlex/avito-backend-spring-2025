@@ -20,11 +20,6 @@ tasks:
     cmds:
       - docker compose down
 
-  lint:
-    desc: "Запустить линтер"
-    cmds:
-      - golangci-lint run ./...
-
   integration:
     desc: "Запустить интеграционные тесты"
     cmds:
@@ -34,15 +29,17 @@ tasks:
     desc: "Запустить юнит тесты"
     cmds:
       - go test -v ./internal/service
-
-  fmt:
-    desc: "Форматировать код"
-    cmds:
-      - go fmt ./...
+      - go test -v ./internal/auth
   
+  cover:
+    desc: "Запустить тест покрытия в html"
+    cmds:
+      - go test ./... -coverprofile c.out
+      - go tool cover -html=c.out
+
   check:
-    desc: "Запустить линтер и тесты"
-    deps: [lint, test, integration]
+    desc: "Запустить все тесты"
+    deps: [test, integration]    
 
   restart:
     desc: "Перезапустить контейнеры"

@@ -1,40 +1,40 @@
-# Makefile
+.PHONY: build up run down integration test cover check restart
 
-.PHONY: build up down lint integration test fmt check restart
-
-# Собрать Docker-контейнеры
+# Сборка Docker-контейнеров
 build:
-	@docker compose build
+	docker compose build
 
-# Запустить контейнеры
+# Запуск контейнеров
 up:
-	@docker compose up -d
+	docker compose up -d
 
-# Собрать Docker и запустить контейнеры
+# Сборка и запуск контейнеров
 run: build up
 
-# Остановить контейнеры
+# Остановка контейнеров
 down:
-	@docker compose down
+	docker compose down
 
-# Запустить линтер
-lint:
-	@golangci-lint run ./...
-
-# Запустить интеграционные тесты
+# Запуск интеграционных тестов
 integration:
-	@go test -v ./internal/tests
+	go test -v ./internal/tests
 
-# Запустить юнит тесты
+# Запуск юнит тестов
 test:
-	@go test -v ./internal/service
+	go test -v ./internal/service
+	go test -v ./internal/auth
 
-# Форматировать код
-fmt:
-	@go fmt ./...
+# Покрытие тестов с выводом в HTML
+cover:
+	go test ./... -coverprofile=c.out
+	go tool cover -html=c.out
 
-# Запустить линтер и тесты
-check: lint test integration
+# Запуск всех тестов
+check: test integration
+
+# Сгенерировать DTO из swagger.yaml
+generate:
+	oapi-codegen -generate types,chi-server,spec -package=dto swagger.yaml > internal/generated/dto.gen.go
 
 # Перезапустить контейнеры
 restart: down up
