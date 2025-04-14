@@ -38,11 +38,12 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // AddProducts mocks base method.
-func (m *MockRepository) AddProducts(ctx context.Context, reception *models.Product, PVZID uuid.UUID) error {
+func (m *MockRepository) AddProducts(ctx context.Context, reception *models.Product, PVZID uuid.UUID) (models.Product, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddProducts", ctx, reception, PVZID)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.Product)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AddProducts indicates an expected call of AddProducts.
@@ -67,11 +68,12 @@ func (mr *MockRepositoryMockRecorder) CheckReceptionStatus(ctx, pvz_id interface
 }
 
 // CloseLastReception mocks base method.
-func (m *MockRepository) CloseLastReception(ctx context.Context, pvz models.PVZ) error {
+func (m *MockRepository) CloseLastReception(ctx context.Context, pvz models.PVZ) (models.Reception, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseLastReception", ctx, pvz)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.Reception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CloseLastReception indicates an expected call of CloseLastReception.
@@ -81,11 +83,12 @@ func (mr *MockRepositoryMockRecorder) CloseLastReception(ctx, pvz interface{}) *
 }
 
 // CreatePVZ mocks base method.
-func (m *MockRepository) CreatePVZ(ctx context.Context, pvz models.PVZ) error {
+func (m *MockRepository) CreatePVZ(ctx context.Context, pvz models.PVZ) (models.PVZ, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreatePVZ", ctx, pvz)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.PVZ)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreatePVZ indicates an expected call of CreatePVZ.
@@ -95,11 +98,12 @@ func (mr *MockRepositoryMockRecorder) CreatePVZ(ctx, pvz interface{}) *gomock.Ca
 }
 
 // CreateReception mocks base method.
-func (m *MockRepository) CreateReception(ctx context.Context, reception *models.Reception) error {
+func (m *MockRepository) CreateReception(ctx context.Context, reception *models.Reception) (models.Reception, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateReception", ctx, reception)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.Reception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateReception indicates an expected call of CreateReception.
@@ -153,11 +157,12 @@ func (mr *MockRepositoryMockRecorder) GetUserByEmail(email interface{}) *gomock.
 }
 
 // RegisterUser mocks base method.
-func (m *MockRepository) RegisterUser(ctx context.Context, user models.User) error {
+func (m *MockRepository) RegisterUser(ctx context.Context, user models.User) (models.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterUser", ctx, user)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // RegisterUser indicates an expected call of RegisterUser.

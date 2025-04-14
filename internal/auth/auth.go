@@ -10,6 +10,10 @@ import (
 
 var secretKey = []byte("secret-key")
 
+func setSecretKey(key []byte) {
+	secretKey = key
+}
+
 func CreateToken(role, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{

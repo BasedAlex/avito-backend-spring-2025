@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -316,9 +317,10 @@ func (s *MyService) PostPvzPvzIdDeleteLastProduct(w http.ResponseWriter, r *http
 		http.Error(w, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
+
 	ok := checkRole(data.Role, r.Method, "/pvz/{pvzId}/delete_last_product")
 	if !ok { 
-		http.Error(w, "Доступ запрещён", http.StatusForbidden)
+		http.Error(w, "Доступ запрещён", http.StatusForbidden) 
 		return
 	}
 
@@ -489,6 +491,12 @@ func checkRole(role, method, path string) bool {
 			return true
 		}
 	}
+
+	fmt.Println("ROLE", role)
+	fmt.Println("METHOD", method)
+	fmt.Println("PATH", path)
+	testRoles := routes[path]
+	fmt.Println("CONTAINS?", slices.Contains(testRoles, role))
 
 	return false 
 }

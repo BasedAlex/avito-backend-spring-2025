@@ -27,9 +27,6 @@ type Repository interface {
 	CheckReceptionStatus(ctx context.Context, pvz_id uuid.UUID) (string,error)
 }
 
-type PVZWithReceptions struct {
-}
-
 type Postgres struct {
 	db *pgxpool.Pool
 }
