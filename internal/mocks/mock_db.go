@@ -12,6 +12,7 @@ import (
 	models "github.com/basedalex/avito-backend-2025-spring/internal/db/models"
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
+	pgx "github.com/jackc/pgx/v5"
 )
 
 // MockRepository is a mock of Repository interface.
@@ -53,18 +54,18 @@ func (mr *MockRepositoryMockRecorder) AddProducts(ctx, reception, PVZID interfac
 }
 
 // CheckReceptionStatus mocks base method.
-func (m *MockRepository) CheckReceptionStatus(ctx context.Context, pvz_id uuid.UUID) (string, error) {
+func (m *MockRepository) CheckReceptionStatus(ctx context.Context, tx pgx.Tx, pvz_id uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckReceptionStatus", ctx, pvz_id)
+	ret := m.ctrl.Call(m, "CheckReceptionStatus", ctx, tx, pvz_id)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CheckReceptionStatus indicates an expected call of CheckReceptionStatus.
-func (mr *MockRepositoryMockRecorder) CheckReceptionStatus(ctx, pvz_id interface{}) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CheckReceptionStatus(ctx, tx, pvz_id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckReceptionStatus", reflect.TypeOf((*MockRepository)(nil).CheckReceptionStatus), ctx, pvz_id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckReceptionStatus", reflect.TypeOf((*MockRepository)(nil).CheckReceptionStatus), ctx, tx, pvz_id)
 }
 
 // CloseLastReception mocks base method.

@@ -24,7 +24,7 @@ type Repository interface {
 	DeleteLastProduct(ctx context.Context, pvz models.PVZ) error 
 	CloseLastReception(ctx context.Context, pvz models.PVZ) (models.Reception, error)
 	GetPVZInfo(ctx context.Context, startDate, endDate time.Time, page, limit int) (models.PVZWithReceptions, error) 
-	CheckReceptionStatus(ctx context.Context, pvz_id uuid.UUID) (string,error)
+	CheckReceptionStatus(ctx context.Context, tx pgx.Tx, pvz_id uuid.UUID) (string,error)
 }
 
 type Postgres struct {
@@ -110,7 +110,7 @@ func (p *Postgres) CreatePVZ(ctx context.Context, pvz models.PVZ) (models.PVZ, e
 
 	var newPVZ models.PVZ
 
-	err = p.db.QueryRow(ctx, "INSERT INTO pvz (id, registration_date, city) VALUES ($1, $2, $3) RETURNING id, registration_date, city", pvz.ID, pvz.RegistrationDate, pvz.City).Scan(&newPVZ.ID, &newPVZ.RegistrationDate, &newPVZ.City)
+	err = tx.QueryRow(ctx, "INSERT INTO pvz (id, registration_date, city) VALUES ($1, $2, $3) RETURNING id, registration_date, city", pvz.ID, pvz.RegistrationDate, pvz.City).Scan(&newPVZ.ID, &newPVZ.RegistrationDate, &newPVZ.City)
 	if err != nil {
 		return models.PVZ{}, fmt.Errorf("could not create new pvz: %w", err)
 	}
@@ -122,11 +122,11 @@ func (p *Postgres) CreatePVZ(ctx context.Context, pvz models.PVZ) (models.PVZ, e
 	return newPVZ, nil
 }
 
-func (p *Postgres) CheckReceptionStatus(ctx context.Context, pvz_id uuid.UUID) (string, error)  {
+func (p *Postgres) CheckReceptionStatus(ctx context.Context, tx pgx.Tx, pvz_id uuid.UUID) (string, error)  {
 	var status string
 
 	query := `SELECT status FROM receptions WHERE pvz_id = $1`
-	err := p.db.QueryRow(context.Background(), query, pvz_id).Scan(&status)
+	err := tx.QueryRow(ctx, query, pvz_id).Scan(&status)
 	if err != nil && err != pgx.ErrNoRows {
 		return "", fmt.Errorf("error getting reception by pvz_id: %w", err)
 	}
@@ -148,7 +148,7 @@ func (p *Postgres) CreateReception(ctx context.Context, reception *models.Recept
 		_ = tx.Rollback(ctx)
 	}()
 
-	status, err := p.CheckReceptionStatus(ctx, reception.PVZID)
+	status, err := p.CheckReceptionStatus(ctx, tx, reception.PVZID)
 	if err != nil {
 		return models.Reception{}, fmt.Errorf("could not check reception status: %w", err)
 	}
@@ -160,13 +160,13 @@ func (p *Postgres) CreateReception(ctx context.Context, reception *models.Recept
 	var newReception models.Reception
 	
 	query := `INSERT INTO receptions (id, received_at, pvz_id, status) VALUES ($1, $2, $3, $4) RETURNING id, received_at, pvz_id, status`
-	err = p.db.QueryRow(ctx, query, reception.ID, reception.ReceivedAt, reception.PVZID, "in_progress").Scan(&newReception.ID, &newReception.ReceivedAt, &newReception.PVZID, &newReception.Status)
+	err = tx.QueryRow(ctx, query, reception.ID, reception.ReceivedAt, reception.PVZID, "in_progress").Scan(&newReception.ID, &newReception.ReceivedAt, &newReception.PVZID, &newReception.Status)
 	if err != nil {
 		return models.Reception{}, fmt.Errorf("could not create new reception: %w", err)
 	}
 
 	query = `UPDATE pvz SET last_reception_id = $1 WHERE id = $2`
-	_, err = p.db.Exec(ctx, query, reception.ID, reception.PVZID)
+	_, err = tx.Exec(ctx, query, reception.ID, reception.PVZID)
 	if err != nil {
 		return models.Reception{}, fmt.Errorf("could not create new reception: %w", err)
 	}
@@ -188,7 +188,7 @@ func (p *Postgres) AddProducts(ctx context.Context, product *models.Product, PVZ
 		_ = tx.Rollback(ctx)
 	}()
 
-	status, err := p.CheckReceptionStatus(ctx, PVZID)
+	status, err := p.CheckReceptionStatus(ctx, tx, PVZID)
 	if err != nil {
 		return models.Product{}, fmt.Errorf("could not check reception status: %w", err)
 	}
@@ -207,7 +207,7 @@ func (p *Postgres) AddProducts(ctx context.Context, product *models.Product, PVZ
 	product.ReceptionID = receptionID
 
 	query := `INSERT INTO products (id, received_at, type, reception_id) VALUES ($1, $2, $3, $4) RETURNING id, received_at, type, reception_id`
-	err = p.db.QueryRow(ctx, query, product.ID, product.ReceivedAt, product.Type, product.ReceptionID).Scan(&newProduct.ID, &newProduct.ReceivedAt, &newProduct.Type, &newProduct.ReceptionID)
+	err = tx.QueryRow(ctx, query, product.ID, product.ReceivedAt, product.Type, product.ReceptionID).Scan(&newProduct.ID, &newProduct.ReceivedAt, &newProduct.Type, &newProduct.ReceptionID)
 	if err != nil {
 		return models.Product{}, fmt.Errorf("could not create new product: %w", err)
 	}
@@ -220,7 +220,16 @@ func (p *Postgres) AddProducts(ctx context.Context, product *models.Product, PVZ
 }
 
 func (p *Postgres) DeleteLastProduct(ctx context.Context, pvz models.PVZ) error {
-	status, err := p.CheckReceptionStatus(ctx, pvz.ID)
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	status, err := p.CheckReceptionStatus(ctx, tx, pvz.ID)
 	if err != nil {
 		return fmt.Errorf("error getting reception status: %w", err)
 	}
@@ -235,15 +244,19 @@ func (p *Postgres) DeleteLastProduct(ctx context.Context, pvz models.PVZ) error 
 	}
 	var productID uuid.UUID
 	query := `SELECT id from products WHERE reception_id = $1 ORDER BY received_at DESC LIMIT 1`
-	err = p.db.QueryRow(ctx, query, receptionID).Scan(&productID)
+	err = tx.QueryRow(ctx, query, receptionID).Scan(&productID)
 	if err != nil {
 		return fmt.Errorf("error getting product_id: %w", err)
 	}
 
 	query = `DELETE FROM products WHERE id = $1`
-	_, err = p.db.Exec(ctx, query, productID)
+	_, err = tx.Exec(ctx, query, productID)
 	if err != nil {
 		return fmt.Errorf("error deleting product: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
 	}
 
 	return nil
@@ -269,7 +282,7 @@ func (p *Postgres) CloseLastReception(ctx context.Context, pvz models.PVZ) (mode
 		_ = tx.Rollback(ctx)
 	}()
 
-	status, err := p.CheckReceptionStatus(ctx, pvz.ID)
+	status, err := p.CheckReceptionStatus(ctx, tx, pvz.ID)
 	if err != nil {
 		return models.Reception{}, fmt.Errorf("error getting reception status: %w", err)
 	}
@@ -281,7 +294,7 @@ func (p *Postgres) CloseLastReception(ctx context.Context, pvz models.PVZ) (mode
 	var reception models.Reception
 
 	query := `UPDATE receptions SET status = 'close' WHERE pvz_id = $1 RETURNING id, received_at, pvz_id, status`
-	err = p.db.QueryRow(ctx, query, pvz.ID).Scan(&reception.ID, &reception.ReceivedAt, &reception.PVZID, &reception.Status)
+	err = tx.QueryRow(ctx, query, pvz.ID).Scan(&reception.ID, &reception.ReceivedAt, &reception.PVZID, &reception.Status)
 	if err != nil {
 		return models.Reception{}, fmt.Errorf("error closing reception: %w", err)
 	}
@@ -292,7 +305,7 @@ func (p *Postgres) CloseLastReception(ctx context.Context, pvz models.PVZ) (mode
 
 
 	query = `UPDATE pvz SET last_reception_id = $2 WHERE id = $1`
-	_, err = p.db.Exec(ctx, query, pvz.ID, receptionID)
+	_, err = tx.Exec(ctx, query, pvz.ID, receptionID)
 	if err != nil {
 		return models.Reception{}, fmt.Errorf("error updating pvz: %w", err)
 	}

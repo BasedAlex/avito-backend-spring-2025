@@ -39,7 +39,13 @@ tasks:
 
   check:
     desc: "Запустить все тесты"
-    deps: [test, integration]    
+    deps: [test, integration]
+
+  gen:
+    desc: "Запустить go генерацию"
+    cmds:
+      - go generate ./...
+
 
   restart:
     desc: "Перезапустить контейнеры"

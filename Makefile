@@ -38,3 +38,7 @@ generate:
 
 # Перезапустить контейнеры
 restart: down up
+
+# Запустить go генерацию
+gen: 
+	go generate ./...
